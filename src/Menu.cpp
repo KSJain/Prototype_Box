@@ -6,6 +6,7 @@ namespace PrototypeBox
 const char* const Menu::ITEMS[Menu::ITEM_COUNT] =
 {
     "Dashboard",
+    "Environment",
     "Settings",
     "About"
 };

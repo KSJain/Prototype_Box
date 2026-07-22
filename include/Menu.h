@@ -11,7 +11,7 @@ namespace PrototypeBox
 class Menu
 {
 public:
-    static constexpr uint8_t ITEM_COUNT = 3;
+    static constexpr uint8_t ITEM_COUNT = 4;
 
     Menu();
 
