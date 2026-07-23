@@ -10,6 +10,11 @@
 #include <KSJ_AHT20Sensor.h>
 #include <KSJ_BMP280Sensor.h>
 
+#include <ControlAction.h>
+#include <ControlDecision.h>
+#include <KSJ_RangeController.h>
+#include <RangeControllerConfig.h>
+
 #include "Menu.h"
 #include "PrototypeBoxConfig.h"
 
@@ -40,11 +45,41 @@ KSJ::BMP280Sensor bmp280(
     1000
 );
 
+/*
+ * Humidifier control policy:
+ *
+ * Below 75%  -> request ON
+ * Above 82%  -> request OFF
+ * Between    -> hold previous state
+ */
+const KSJ::RangeControllerConfig humidityConfig
+{
+    75.0F,
+    82.0F
+};
+
+KSJ::RangeController humidityController(
+    humidityConfig
+);
+
 PrototypeBox::Menu menu;
 
-AppScreen currentScreen = AppScreen::Menu;
+AppScreen currentScreen =
+    AppScreen::Menu;
 
 bool environmentChanged = false;
+
+/*
+ * This represents the state RAMU currently recommends.
+ *
+ * No physical humidifier is connected yet.
+ * We are only displaying the decision.
+ */
+bool humidifierRequestedOn = false;
+
+bool humidityDecisionValid = false;
+
+uint32_t humidityDecisionAtMs = 0;
 
 bool isEnvironmentSelected()
 {
@@ -52,6 +87,88 @@ bool isEnvironmentSelected()
         menu.selectedItem(),
         "Environment"
     ) == 0;
+}
+
+const char* humidityControlText()
+{
+    if (!humidityDecisionValid)
+    {
+        return "SENSOR ERROR";
+    }
+
+    return humidifierRequestedOn
+        ? "HUMIDIFY"
+        : "OFF";
+}
+
+void applyHumidityDecision(
+    const KSJ::ControlDecision& decision
+)
+{
+    humidityDecisionValid =
+        decision.inputValid;
+
+    humidityDecisionAtMs =
+        decision.decidedAtMs;
+
+    switch (decision.action)
+    {
+        case KSJ::ControlAction::TurnOn:
+        {
+            humidifierRequestedOn = true;
+
+            Serial.print("Humidity control: ON at ");
+            Serial.print(decision.measuredValue, 1);
+            Serial.println("%");
+
+            break;
+        }
+
+        case KSJ::ControlAction::TurnOff:
+        {
+            humidifierRequestedOn = false;
+
+            Serial.print("Humidity control: OFF at ");
+            Serial.print(decision.measuredValue, 1);
+            Serial.println("%");
+
+            break;
+        }
+
+        case KSJ::ControlAction::Hold:
+        default:
+        {
+            /*
+             * Hold means keep the previous recommendation.
+             * No state change is required.
+             */
+            break;
+        }
+    }
+}
+
+void updateHumidityControl()
+{
+    if (!aht20.hasNewReading())
+    {
+        return;
+    }
+
+    const KSJ::EnvironmentReading& reading =
+        aht20.reading();
+
+    const float humidity =
+        reading.humidityValid
+            ? reading.humidityPercent
+            : NAN;
+
+    const KSJ::ControlDecision decision =
+        humidityController.update(
+            humidity,
+            reading.measuredAtMs
+        );
+
+    applyHumidityDecision(decision);
 }
 
 void drawEnvironmentScreen()
@@ -65,6 +182,7 @@ void drawEnvironmentScreen()
     display.clear();
 
     display.setTextSize(1);
+
     display.print(
         0,
         0,
@@ -88,19 +206,19 @@ void drawEnvironmentScreen()
 
         display.print(
             0,
-            18,
-            "Temp:"
+            16,
+            "T:"
         );
 
         display.print(
-            42,
             18,
+            16,
             temperatureText.c_str()
         );
 
         display.print(
-            78,
-            18,
+            54,
+            16,
             "C"
         );
     }
@@ -108,8 +226,8 @@ void drawEnvironmentScreen()
     {
         display.print(
             0,
-            18,
-            "Temp: --"
+            16,
+            "T: --"
         );
     }
 
@@ -123,19 +241,19 @@ void drawEnvironmentScreen()
 
         display.print(
             0,
-            32,
-            "Humidity:"
+            28,
+            "H:"
         );
 
         display.print(
-            60,
-            32,
+            18,
+            28,
             humidityText.c_str()
         );
 
         display.print(
-            96,
-            32,
+            54,
+            28,
             "%"
         );
     }
@@ -143,8 +261,8 @@ void drawEnvironmentScreen()
     {
         display.print(
             0,
-            32,
-            "Humidity: --"
+            28,
+            "H: --"
         );
     }
 
@@ -158,29 +276,41 @@ void drawEnvironmentScreen()
 
         display.print(
             0,
-            46,
-            "Pressure:"
+            40,
+            "P:"
         );
 
         display.print(
-            54,
-            46,
+            18,
+            40,
             pressureText.c_str()
+        );
+
+        display.print(
+            72,
+            40,
+            "hPa"
         );
     }
     else
     {
         display.print(
             0,
-            46,
-            "Pressure: --"
+            40,
+            "P: --"
         );
     }
 
     display.print(
         0,
-        56,
-        "Press to return"
+        52,
+        "Control:"
+    );
+
+    display.print(
+        54,
+        52,
+        humidityControlText()
     );
 
     display.update();
@@ -191,6 +321,7 @@ void drawGenericDetailScreen()
     display.clear();
 
     display.setTextSize(1);
+
     display.print(
         0,
         0,
@@ -205,6 +336,7 @@ void drawGenericDetailScreen()
     );
 
     display.setTextSize(2);
+
     display.print(
         0,
         20,
@@ -212,6 +344,7 @@ void drawGenericDetailScreen()
     );
 
     display.setTextSize(1);
+
     display.print(
         0,
         52,
@@ -239,6 +372,13 @@ void updateEnvironmentSensors()
 
     aht20.update(nowMs);
     bmp280.update(nowMs);
+
+    /*
+     * Process control before clearing the AHT20 flag,
+     * because updateHumidityControl() uses it to detect
+     * a fresh humidity measurement.
+     */
+    updateHumidityControl();
 
     if (aht20.hasNewReading())
     {
@@ -318,11 +458,24 @@ void setup()
         );
     }
 
+    Serial.println(
+        "Humidity control:"
+    );
+
+    Serial.println(
+        "  ON below 75%"
+    );
+
+    Serial.println(
+        "  OFF above 82%"
+    );
+
     menu.draw(display);
 
     Serial.println("Display: ready");
     Serial.println("Input: ready");
     Serial.println("Environment: ready");
+    Serial.println("Control: ready");
     Serial.println("Prototype Box: ready");
 }
 
