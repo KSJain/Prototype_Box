@@ -15,6 +15,8 @@
 #include <KSJ_RangeController.h>
 #include <RangeControllerConfig.h>
 
+#include <KSJ_DigitalOutput.h>
+
 #include "Menu.h"
 #include "PrototypeBoxConfig.h"
 
@@ -23,6 +25,11 @@ enum class AppScreen : uint8_t
     Menu,
     Detail
 };
+
+namespace OutputPins
+{
+    constexpr uint8_t ONBOARD_LED = 2;
+}
 
 KSJ::SSD1306Display display(
     DisplayConfig::WIDTH,
@@ -45,13 +52,6 @@ KSJ::BMP280Sensor bmp280(
     1000
 );
 
-/*
- * Humidifier control policy:
- *
- * Below 75%  -> request ON
- * Above 82%  -> request OFF
- * Between    -> hold previous state
- */
 const KSJ::RangeControllerConfig humidityConfig
 {
     75.0F,
@@ -62,24 +62,19 @@ KSJ::RangeController humidityController(
     humidityConfig
 );
 
+KSJ::DigitalOutput humidifierOutput(
+    OutputPins::ONBOARD_LED,
+    true
+);
+
 PrototypeBox::Menu menu;
 
 AppScreen currentScreen =
     AppScreen::Menu;
 
 bool environmentChanged = false;
-
-/*
- * This represents the state RAMU currently recommends.
- *
- * No physical humidifier is connected yet.
- * We are only displaying the decision.
- */
-bool humidifierRequestedOn = false;
-
 bool humidityDecisionValid = false;
-
-uint32_t humidityDecisionAtMs = 0;
+bool humidifierRequestedOn = false;
 
 bool isEnvironmentSelected()
 {
@@ -93,7 +88,7 @@ const char* humidityControlText()
 {
     if (!humidityDecisionValid)
     {
-        return "SENSOR ERROR";
+        return "ERROR";
     }
 
     return humidifierRequestedOn
@@ -108,18 +103,28 @@ void applyHumidityDecision(
     humidityDecisionValid =
         decision.inputValid;
 
-    humidityDecisionAtMs =
-        decision.decidedAtMs;
-
     switch (decision.action)
     {
         case KSJ::ControlAction::TurnOn:
         {
             humidifierRequestedOn = true;
 
-            Serial.print("Humidity control: ON at ");
-            Serial.print(decision.measuredValue, 1);
+            humidifierOutput.on();
+
+            Serial.print(
+                "Humidity control: TURN ON at "
+            );
+
+            Serial.print(
+                decision.measuredValue,
+                1
+            );
+
             Serial.println("%");
+
+            Serial.println(
+                "Onboard LED: ON"
+            );
 
             break;
         }
@@ -128,9 +133,31 @@ void applyHumidityDecision(
         {
             humidifierRequestedOn = false;
 
-            Serial.print("Humidity control: OFF at ");
-            Serial.print(decision.measuredValue, 1);
-            Serial.println("%");
+            humidifierOutput.off();
+
+            Serial.print(
+                "Humidity control: TURN OFF at "
+            );
+
+            if (decision.inputValid)
+            {
+                Serial.print(
+                    decision.measuredValue,
+                    1
+                );
+
+                Serial.println("%");
+            }
+            else
+            {
+                Serial.println(
+                    "invalid sensor reading"
+                );
+            }
+
+            Serial.println(
+                "Onboard LED: OFF"
+            );
 
             break;
         }
@@ -139,8 +166,8 @@ void applyHumidityDecision(
         default:
         {
             /*
-             * Hold means keep the previous recommendation.
-             * No state change is required.
+             * Keep the previous recommendation
+             * and physical output state.
              */
             break;
         }
@@ -180,7 +207,6 @@ void drawEnvironmentScreen()
         bmp280.reading();
 
     display.clear();
-
     display.setTextSize(1);
 
     display.print(
@@ -319,7 +345,6 @@ void drawEnvironmentScreen()
 void drawGenericDetailScreen()
 {
     display.clear();
-
     display.setTextSize(1);
 
     display.print(
@@ -374,9 +399,8 @@ void updateEnvironmentSensors()
     bmp280.update(nowMs);
 
     /*
-     * Process control before clearing the AHT20 flag,
-     * because updateHumidityControl() uses it to detect
-     * a fresh humidity measurement.
+     * Process the fresh AHT20 reading before
+     * clearing its new-reading flag.
      */
     updateHumidityControl();
 
@@ -426,6 +450,12 @@ void setup()
 
     encoder.begin();
 
+    /*
+     * begin() configures the GPIO and immediately
+     * places the output into the safe OFF state.
+     */
+    humidifierOutput.begin();
+
     const bool aht20Ready =
         aht20.begin();
 
@@ -470,12 +500,17 @@ void setup()
         "  OFF above 82%"
     );
 
+    Serial.println(
+        "Onboard LED represents humidifier."
+    );
+
     menu.draw(display);
 
     Serial.println("Display: ready");
     Serial.println("Input: ready");
     Serial.println("Environment: ready");
     Serial.println("Control: ready");
+    Serial.println("Output: ready");
     Serial.println("Prototype Box: ready");
 }
 
@@ -490,6 +525,7 @@ void loop()
     )
     {
         drawEnvironmentScreen();
+
         environmentChanged = false;
     }
 
@@ -513,6 +549,7 @@ void loop()
                 case KSJ::InputEvent::RotateRight:
                 {
                     Serial.print("Menu: ");
+
                     Serial.println(
                         menu.selectedItem()
                     );
@@ -529,11 +566,13 @@ void loop()
                             AppScreen::Detail;
 
                         Serial.print("Opened: ");
+
                         Serial.println(
                             menu.selectedItem()
                         );
 
                         drawDetailScreen();
+
                         environmentChanged = false;
                     }
 
@@ -561,6 +600,7 @@ void loop()
                 );
 
                 menu.draw(display);
+
                 environmentChanged = false;
             }
 
