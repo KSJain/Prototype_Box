@@ -48,7 +48,7 @@ namespace StoragePins
 namespace StorageConfig
 {
     constexpr uint32_t SPI_FREQUENCY_HZ =
-        4'000'000;
+        4000000;
 
     constexpr char BOOT_LOG_PATH[] =
         "/boot_log.txt";
@@ -695,11 +695,6 @@ void setup()
     }
 
     encoder.begin();
-
-    /*
-     * begin() configures the GPIO and immediately
-     * places the output into the safe OFF state.
-     */
     humidifierOutput.begin();
 
     const bool aht20Ready =
@@ -750,10 +745,6 @@ void setup()
 
     Serial.println(
         "  OFF above 82%"
-    );
-
-    Serial.println(
-        "Onboard LED represents humidifier."
     );
 
     menu.draw(display);

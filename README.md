@@ -47,6 +47,7 @@ KSJ/
 | KSJ_Environment | v0.1.0  |
 | KSJ_Control     | v0.1.0  |
 | KSJ_Output      | v0.1.1  |
+| KSJ_Storage     | v0.1.0  |
 
 ---
 
@@ -206,6 +207,9 @@ Prototype Box maintains a standardized hardware mapping so examples remain consi
 * ✅ Autonomous control decisions
 * ✅ Physical digital outputs
 * ✅ Modular architecture
+* ✅ SD-card persistence
+* ✅ Persistent boot history
+* ✅ Graceful storage failure handling
 
 ## Next
 
