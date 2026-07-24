@@ -22,6 +22,8 @@ Non-blocking architecture.
 
 Small consistent progress.
 
+Learn to walk before leap.
+
 Hardware should be replaceable.
 
 Software should be understandable.
