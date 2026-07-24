@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <SPI.h>
 #include <cstring>
 
 #include <KSJ_SSD1306Display.h>
@@ -17,6 +18,11 @@
 
 #include <KSJ_DigitalOutput.h>
 
+#include <KSJ_SDStorage.h>
+#include <StorageInfo.h>
+#include <StorageResult.h>
+#include <StorageStatus.h>
+
 #include "Menu.h"
 #include "PrototypeBoxConfig.h"
 
@@ -29,6 +35,23 @@ enum class AppScreen : uint8_t
 namespace OutputPins
 {
     constexpr uint8_t ONBOARD_LED = 2;
+}
+
+namespace StoragePins
+{
+    constexpr uint8_t CS = 5;
+    constexpr uint8_t SCK = 18;
+    constexpr uint8_t MISO = 19;
+    constexpr uint8_t MOSI = 23;
+}
+
+namespace StorageConfig
+{
+    constexpr uint32_t SPI_FREQUENCY_HZ =
+        4'000'000;
+
+    constexpr char BOOT_LOG_PATH[] =
+        "/boot_log.txt";
 }
 
 KSJ::SSD1306Display display(
@@ -67,6 +90,14 @@ KSJ::DigitalOutput humidifierOutput(
     true
 );
 
+SPIClass sdSpi(VSPI);
+
+KSJ::SDStorage storage(
+    sdSpi,
+    StoragePins::CS,
+    StorageConfig::SPI_FREQUENCY_HZ
+);
+
 PrototypeBox::Menu menu;
 
 AppScreen currentScreen =
@@ -76,12 +107,270 @@ bool environmentChanged = false;
 bool humidityDecisionValid = false;
 bool humidifierRequestedOn = false;
 
+bool storageReady = false;
+uint32_t bootCount = 0;
+
 bool isEnvironmentSelected()
 {
     return std::strcmp(
         menu.selectedItem(),
         "Environment"
     ) == 0;
+}
+
+const char* storageStatusName(
+    KSJ::StorageStatus status
+)
+{
+    switch (status)
+    {
+        case KSJ::StorageStatus::NotInitialized:
+            return "NOT INITIALIZED";
+
+        case KSJ::StorageStatus::Ready:
+            return "READY";
+
+        case KSJ::StorageStatus::MountFailed:
+            return "MOUNT FAILED";
+
+        case KSJ::StorageStatus::CardNotFound:
+            return "CARD NOT FOUND";
+
+        case KSJ::StorageStatus::OpenFailed:
+            return "OPEN FAILED";
+
+        case KSJ::StorageStatus::WriteFailed:
+            return "WRITE FAILED";
+
+        case KSJ::StorageStatus::ReadFailed:
+            return "READ FAILED";
+
+        default:
+            return "UNKNOWN";
+    }
+}
+
+const char* cardTypeName(
+    KSJ::StorageCardType cardType
+)
+{
+    switch (cardType)
+    {
+        case KSJ::StorageCardType::MMC:
+            return "MMC";
+
+        case KSJ::StorageCardType::SDSC:
+            return "SDSC";
+
+        case KSJ::StorageCardType::SDHC:
+            return "SDHC/SDXC";
+
+        case KSJ::StorageCardType::None:
+            return "NONE";
+
+        case KSJ::StorageCardType::Unknown:
+        default:
+            return "UNKNOWN";
+    }
+}
+
+uint32_t countLines(
+    const String& text
+)
+{
+    if (text.length() == 0)
+    {
+        return 0;
+    }
+
+    uint32_t lineCount = 0;
+
+    for (
+        size_t index = 0;
+        index < text.length();
+        ++index
+    )
+    {
+        if (text[index] == '\n')
+        {
+            ++lineCount;
+        }
+    }
+
+    /*
+     * Count a final line even if the file does
+     * not end with a newline character.
+     */
+    if (text[text.length() - 1] != '\n')
+    {
+        ++lineCount;
+    }
+
+    return lineCount;
+}
+
+void printStorageInfo()
+{
+    const KSJ::StorageInfo info =
+        storage.info();
+
+    if (!info.valid)
+    {
+        Serial.println(
+            "Storage information unavailable."
+        );
+
+        return;
+    }
+
+    constexpr uint64_t BYTES_PER_MB =
+        1024ULL * 1024ULL;
+
+    Serial.print("Card type: ");
+    Serial.println(
+        cardTypeName(info.cardType)
+    );
+
+    Serial.print("Card size: ");
+    Serial.print(
+        info.cardSizeBytes /
+        BYTES_PER_MB
+    );
+    Serial.println(" MB");
+
+    Serial.print("Filesystem size: ");
+    Serial.print(
+        info.totalBytes /
+        BYTES_PER_MB
+    );
+    Serial.println(" MB");
+
+    Serial.print("Used space: ");
+    Serial.print(
+        info.usedBytes /
+        BYTES_PER_MB
+    );
+    Serial.println(" MB");
+}
+
+void recordBoot()
+{
+    if (!storageReady)
+    {
+        return;
+    }
+
+    String existingBootLog;
+
+    const KSJ::StorageResult readResult =
+        storage.readText(
+            StorageConfig::BOOT_LOG_PATH,
+            existingBootLog
+        );
+
+    if (readResult.success)
+    {
+        bootCount =
+            countLines(existingBootLog);
+    }
+    else
+    {
+        /*
+         * An absent boot log is expected on the
+         * first run, so begin at zero.
+         */
+        bootCount = 0;
+    }
+
+    ++bootCount;
+
+    String bootRecord;
+
+    bootRecord += "boot=";
+    bootRecord += String(bootCount);
+
+    bootRecord += ",firmware=";
+    bootRecord += Board::VERSION;
+
+    bootRecord += ",uptime_ms=";
+    bootRecord += String(millis());
+
+    bootRecord += "\n";
+
+    KSJ::StorageResult writeResult;
+
+    if (bootCount == 1)
+    {
+        writeResult =
+            storage.writeText(
+                StorageConfig::BOOT_LOG_PATH,
+                bootRecord.c_str()
+            );
+    }
+    else
+    {
+        writeResult =
+            storage.appendText(
+                StorageConfig::BOOT_LOG_PATH,
+                bootRecord.c_str()
+            );
+    }
+
+    if (!writeResult.success)
+    {
+        Serial.print(
+            "Boot record failed: "
+        );
+
+        Serial.println(
+            storageStatusName(
+                writeResult.status
+            )
+        );
+
+        return;
+    }
+
+    Serial.print("Boot record saved. Boot #");
+    Serial.println(bootCount);
+}
+
+void initializeStorage()
+{
+    sdSpi.begin(
+        StoragePins::SCK,
+        StoragePins::MISO,
+        StoragePins::MOSI,
+        StoragePins::CS
+    );
+
+    const KSJ::StorageResult mountResult =
+        storage.begin();
+
+    storageReady =
+        mountResult.success;
+
+    Serial.print("Storage: ");
+
+    Serial.println(
+        storageReady
+            ? "READY"
+            : storageStatusName(
+                mountResult.status
+            )
+    );
+
+    if (!storageReady)
+    {
+        Serial.println(
+            "Prototype Box will continue without persistence."
+        );
+
+        return;
+    }
+
+    printStorageInfo();
+    recordBoot();
 }
 
 const char* humidityControlText()
@@ -108,7 +397,6 @@ void applyHumidityDecision(
         case KSJ::ControlAction::TurnOn:
         {
             humidifierRequestedOn = true;
-
             humidifierOutput.on();
 
             Serial.print(
@@ -121,10 +409,7 @@ void applyHumidityDecision(
             );
 
             Serial.println("%");
-
-            Serial.println(
-                "Onboard LED: ON"
-            );
+            Serial.println("Onboard LED: ON");
 
             break;
         }
@@ -132,7 +417,6 @@ void applyHumidityDecision(
         case KSJ::ControlAction::TurnOff:
         {
             humidifierRequestedOn = false;
-
             humidifierOutput.off();
 
             Serial.print(
@@ -155,9 +439,7 @@ void applyHumidityDecision(
                 );
             }
 
-            Serial.println(
-                "Onboard LED: OFF"
-            );
+            Serial.println("Onboard LED: OFF");
 
             break;
         }
@@ -230,11 +512,7 @@ void drawEnvironmentScreen()
                 1
             );
 
-        display.print(
-            0,
-            16,
-            "T:"
-        );
+        display.print(0, 16, "T:");
 
         display.print(
             18,
@@ -242,19 +520,11 @@ void drawEnvironmentScreen()
             temperatureText.c_str()
         );
 
-        display.print(
-            54,
-            16,
-            "C"
-        );
+        display.print(54, 16, "C");
     }
     else
     {
-        display.print(
-            0,
-            16,
-            "T: --"
-        );
+        display.print(0, 16, "T: --");
     }
 
     if (ahtReading.humidityValid)
@@ -265,11 +535,7 @@ void drawEnvironmentScreen()
                 1
             );
 
-        display.print(
-            0,
-            28,
-            "H:"
-        );
+        display.print(0, 28, "H:");
 
         display.print(
             18,
@@ -277,19 +543,11 @@ void drawEnvironmentScreen()
             humidityText.c_str()
         );
 
-        display.print(
-            54,
-            28,
-            "%"
-        );
+        display.print(54, 28, "%");
     }
     else
     {
-        display.print(
-            0,
-            28,
-            "H: --"
-        );
+        display.print(0, 28, "H: --");
     }
 
     if (bmpReading.pressureValid)
@@ -300,11 +558,7 @@ void drawEnvironmentScreen()
                 1
             );
 
-        display.print(
-            0,
-            40,
-            "P:"
-        );
+        display.print(0, 40, "P:");
 
         display.print(
             18,
@@ -320,11 +574,7 @@ void drawEnvironmentScreen()
     }
     else
     {
-        display.print(
-            0,
-            40,
-            "P: --"
-        );
+        display.print(0, 40, "P: --");
     }
 
     display.print(
@@ -398,10 +648,6 @@ void updateEnvironmentSensors()
     aht20.update(nowMs);
     bmp280.update(nowMs);
 
-    /*
-     * Process the fresh AHT20 reading before
-     * clearing its new-reading flag.
-     */
     updateHumidityControl();
 
     if (aht20.hasNewReading())
@@ -420,7 +666,7 @@ void updateEnvironmentSensors()
 void setup()
 {
     Serial.begin(115200);
-    delay(200);
+    delay(500);
 
     Serial.println();
     Serial.println(Board::NAME);
@@ -488,6 +734,12 @@ void setup()
         );
     }
 
+    /*
+     * Storage failure is non-fatal.
+     * Environmental control continues locally.
+     */
+    initializeStorage();
+
     Serial.println(
         "Humidity control:"
     );
@@ -511,6 +763,17 @@ void setup()
     Serial.println("Environment: ready");
     Serial.println("Control: ready");
     Serial.println("Output: ready");
+
+    Serial.print("Storage: ");
+    Serial.println(
+        storageReady
+            ? "ready"
+            : "unavailable"
+    );
+
+    Serial.print("Persistent boot count: ");
+    Serial.println(bootCount);
+
     Serial.println("Prototype Box: ready");
 }
 
@@ -525,7 +788,6 @@ void loop()
     )
     {
         drawEnvironmentScreen();
-
         environmentChanged = false;
     }
 
@@ -572,7 +834,6 @@ void loop()
                         );
 
                         drawDetailScreen();
-
                         environmentChanged = false;
                     }
 
@@ -600,7 +861,6 @@ void loop()
                 );
 
                 menu.draw(display);
-
                 environmentChanged = false;
             }
 
