@@ -24,7 +24,7 @@ Prototype Box follows the **KSJ Engineering Standard**.
 
 See:
 
-```
+```text
 KSJ/
 └── ENGINEERING_STANDARD.md
 ```
@@ -33,9 +33,9 @@ KSJ/
 
 # Current Software
 
-### Prototype Box Firmware
+## Prototype Box Firmware
 
-**Current Release:** **v0.5.0**
+**Current Release:** **v0.5.1**
 
 ## Libraries
 
@@ -55,42 +55,46 @@ KSJ/
 
 ## Current Hardware
 
-* ESP32 DOIT DevKit V1
-* SSD1306 OLED Display
-* Rotary Encoder
-* AHT20 Temperature & Humidity Sensor
-* BMP280 Pressure Sensor
-* Analog LDR
-* Micro SD Card Module
-* Onboard Status LED
+- ESP32 DOIT DevKit V1
+- SSD1306 128×64 OLED Display
+- Rotary Encoder
+- AHT20 Temperature and Humidity Sensor
+- BMP280 Temperature and Pressure Sensor
+- Analog LDR
+- Micro SD Card Module
+- Onboard Status LED
 
 ## Planned Hardware
 
-* WS2812 Status Ring
-* Relay Module
-* MOSFET Driver
-* Peristaltic Pump
-* Solenoid Valve
-* Capacitive Water Level Sensor
-* Capacitive Soil Moisture Sensor
-* CO₂ / VOC Sensor
+- Four-LED Status Bank
+- Relay Module
+- MOSFET Driver
+- Capacitive Water-Level Sensor
+- Peristaltic Pump
+- Solenoid Valve
+- Capacitive Soil-Moisture Sensor
+- CO₂ / VOC Sensor
+- Battery and Power Management
 
 ---
 
 # Current Features
 
-* Scrollable menu system
-* Multi-page Environment interface
-* Temperature sensing
-* Humidity sensing
-* Pressure sensing
-* Ambient light sensing
-* Human-readable light interpretation
-* Humidity control recommendations
-* Autonomous digital output
-* SD-card persistence
-* Persistent boot history
-* Local-first operation
+- Scrollable main menu
+- Multi-page Environment interface
+- Climate and Light detail pages
+- Temperature sensing
+- Humidity sensing
+- Pressure sensing
+- Calibrated ambient-light sensing
+- Human-readable light interpretation
+- Humidity-control recommendations
+- Autonomous onboard LED output
+- Context-aware Serial interface
+- SD-card persistence
+- Persistent boot history
+- Local-first operation
+- Graceful operation when optional storage is unavailable
 
 ---
 
@@ -98,35 +102,38 @@ KSJ/
 
 Prototype Box is composed from reusable libraries.
 
-```
+```text
 Observe
     │
     ▼
-
 KSJ_Input
 KSJ_Environment
 
     │
     ▼
-
 Think
 
 KSJ_Control
 
     │
     ▼
-
 Act
 
 KSJ_Output
 
     │
     ▼
-
 Present
 
 KSJ_UI
 KSJ_Display
+Serial Interface
+
+    │
+    ▼
+Remember
+
+KSJ_Storage
 ```
 
 Each library has one responsibility.
@@ -137,13 +144,43 @@ Libraries never become products.
 
 ---
 
+# Environment Pages
+
+The Environment menu contains two live pages.
+
+## Climate
+
+- Temperature
+- Humidity
+- Pressure
+- Humidity-control state
+
+## Light
+
+- Calibrated light percentage
+- Raw ADC value
+- Human-readable light condition
+
+While Environment is open:
+
+```text
+Rotate → switch pages
+Press  → return to menu
+```
+
+The Serial monitor mirrors the active Environment page every two seconds.
+
+When the user returns to the main menu, live Environment output stops.
+
+---
+
 # Learning Path
 
 The KSJ ecosystem is designed to be learned one brick at a time.
 
 See:
 
-```
+```text
 KSJ/
 └── LEARNING_PATH.md
 ```
@@ -154,9 +191,9 @@ KSJ/
 
 ## Requirements
 
-* PlatformIO
-* ESP32 DOIT DevKit V1
-* USB Cable
+- PlatformIO
+- ESP32 DOIT DevKit V1
+- USB Cable
 
 ## Build
 
@@ -199,6 +236,7 @@ pio device monitor
 | Onboard LED    | Output |    2 |
 
 ### LDR Voltage Divider
+## LDR Voltage Divider
 
 ```text
 3V3
@@ -212,7 +250,7 @@ LDR
 GND
 ```
 
-Prototype Box maintains a standardized hardware mapping so every KSJ library example can be connected without changing pin assignments.
+Calibration depends on the specific LDR, resistor, enclosure, and expected lighting conditions.
 
 ---
 
@@ -220,37 +258,41 @@ Prototype Box maintains a standardized hardware mapping so every KSJ library exa
 
 ## Current
 
-* ✅ Display abstraction
-* ✅ Rotary input
-* ✅ Menu framework
-* ✅ Environment sensing
-* ✅ Ambient light sensing
-* ✅ Autonomous control decisions
-* ✅ Physical digital outputs
-* ✅ Modular architecture
-* ✅ SD-card persistence
-* ✅ Persistent boot history
+- ✅ Display abstraction
+- ✅ Rotary input
+- ✅ Menu framework
+- ✅ Climate sensing
+- ✅ Ambient-light sensing
+- ✅ Multi-page Environment interface
+- ✅ Context-aware Serial interface
+- ✅ Autonomous control decisions
+- ✅ Digital output
+- ✅ SD-card persistence
+- ✅ Persistent boot history
 
 ## Next
 
-* ⬜ Context-aware Serial interface
-* ⬜ Four-LED status indicators
-* ⬜ Relay hardware support
-* ⬜ Capacitive water-level sensing
-* ⬜ Condensate pump controller
-* ⬜ 128×32 OLED support
-* ⬜ Runtime statistics
-* ⬜ Event logging
+- ⬜ Four-LED status bank
+- ⬜ Relay hardware test
+- ⬜ Capacitive water-level sensing
+- ⬜ Condensate pump controller
+- ⬜ Pump maximum-runtime protection
+- ⬜ Pump cooldown protection
+- ⬜ 128×32 OLED support
+- ⬜ Runtime and maintenance metrics
+- ⬜ Event logging
 
 ## Future
 
-* ⬜ Digital Gardener
-* ⬜ Mushroom Chamber
-* ⬜ Basement Water Monitor
-* ⬜ ESP-NOW networking
-* ⬜ OTA updates
-* ⬜ Mobile companion app
-* ⬜ Web dashboard
+- ⬜ Digital Gardener
+- ⬜ Mushroom Chamber
+- ⬜ Basement Water Monitor
+- ⬜ KSJ_Motion
+- ⬜ ESP-NOW networking
+- ⬜ MQTT gateway
+- ⬜ OTA updates
+- ⬜ Mobile companion app
+- ⬜ Web dashboard
 
 ---
 
@@ -258,39 +300,39 @@ Prototype Box maintains a standardized hardware mapping so every KSJ library exa
 
 Additional documentation is available in the **KSJ** folder.
 
-```
+```text
 KSJ/
-
-ENGINEERING_STANDARD.md
-
-LEARNING_PATH.md
-
-ROADMAP.md
-
-CONTRIBUTING.md
+├── ENGINEERING_STANDARD.md
+├── LEARNING_PATH.md
+├── ROADMAP.md
+└── CONTRIBUTING.md
 ```
 
 ---
 
 # FAQ
 
-### Why build libraries instead of one application?
+## Why build libraries instead of one application?
 
-Libraries are easier to understand, test, reuse, and improve independently.
+Libraries are easier to understand, test, reuse, diagnose, and improve independently.
 
 Prototype Box demonstrates how they work together as a complete embedded system.
 
----
-
-### Why local-first?
+## Why local-first?
 
 Automation should continue operating even when the Internet does not.
 
-Cloud services should extend the system—not become a dependency.
+Cloud services should extend the system—not become a dependency for basic operation.
 
----
+## Why provide both OLED and Serial interfaces?
 
-### Why "Prototype Box"?
+The OLED supports the physical device.
+
+Serial provides diagnostics, accessibility, and a low-cost learning path for someone who owns only an ESP32.
+
+Both surfaces express the same application state.
+
+## Why "Prototype Box"?
 
 Prototype Box is intentionally modular.
 

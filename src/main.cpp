@@ -65,26 +65,16 @@ namespace StorageConfig
 
 namespace LightCalibration
 {
-    /*
-     * Replace these with the final values from
-     * your Basic_Light calibration test.
-     *
-     * Leave some margin beyond ordinary readings.
-     */
     constexpr uint16_t DARK_RAW = 650;
     constexpr uint16_t BRIGHT_RAW = 3650;
-
-    /*
-     * true:
-     * higher raw ADC means brighter light.
-     *
-     * Change to false only if your tested circuit
-     * behaves in the opposite direction.
-     */
     constexpr bool HIGHER_RAW_IS_BRIGHTER = true;
+    constexpr uint32_t REFRESH_INTERVAL_MS = 500;
+}
 
-    constexpr uint32_t REFRESH_INTERVAL_MS =
-        500;
+namespace SerialUI
+{
+    constexpr uint32_t LIVE_REFRESH_INTERVAL_MS =
+        2000;
 }
 
 KSJ::SSD1306Display display(
@@ -153,12 +143,14 @@ EnvironmentPage environmentPage =
     EnvironmentPage::Climate;
 
 bool environmentChanged = false;
-
 bool humidityDecisionValid = false;
 bool humidifierRequestedOn = false;
 
 bool storageReady = false;
 uint32_t bootCount = 0;
+
+uint32_t previousSerialPageMs = 0;
+bool serialPageRefreshRequested = false;
 
 bool isEnvironmentSelected()
 {
@@ -247,10 +239,6 @@ uint32_t countLines(
         }
     }
 
-    /*
-     * Count a final line even if the file does
-     * not end with a newline character.
-     */
     if (text[text.length() - 1] != '\n')
     {
         ++lineCount;
@@ -318,19 +306,10 @@ void recordBoot()
             existingBootLog
         );
 
-    if (readResult.success)
-    {
-        bootCount =
-            countLines(existingBootLog);
-    }
-    else
-    {
-        /*
-         * An absent boot log is expected on the
-         * first run, so begin at zero.
-         */
-        bootCount = 0;
-    }
+    bootCount =
+        readResult.success
+            ? countLines(existingBootLog)
+            : 0;
 
     ++bootCount;
 
@@ -338,13 +317,10 @@ void recordBoot()
 
     bootRecord += "boot=";
     bootRecord += String(bootCount);
-
     bootRecord += ",firmware=";
     bootRecord += Board::VERSION;
-
     bootRecord += ",uptime_ms=";
     bootRecord += String(millis());
-
     bootRecord += "\n";
 
     KSJ::StorageResult writeResult;
@@ -431,7 +407,7 @@ const char* humidityControlText()
     }
 
     return humidifierRequestedOn
-        ? "HUMIDIFY"
+        ? "ON"
         : "OFF";
 }
 
@@ -577,7 +553,6 @@ void printClimatePageToSerial()
     Serial.println(
         "Environment > Climate"
     );
-
     Serial.println(
         "------------------------"
     );
@@ -590,7 +565,6 @@ void printClimatePageToSerial()
             ahtReading.temperatureC,
             1
         );
-
         Serial.println(" C");
     }
     else
@@ -606,7 +580,6 @@ void printClimatePageToSerial()
             ahtReading.humidityPercent,
             1
         );
-
         Serial.println(" %");
     }
     else
@@ -622,7 +595,6 @@ void printClimatePageToSerial()
             bmpReading.pressureHpa,
             1
         );
-
         Serial.println(" hPa");
     }
     else
@@ -638,7 +610,6 @@ void printClimatePageToSerial()
     Serial.println(
         "Rotate = Page | Press = Menu"
     );
-
     Serial.println(
         "------------------------"
     );
@@ -653,12 +624,11 @@ void printLightPageToSerial()
     Serial.println(
         "Environment > Light"
     );
-
     Serial.println(
         "------------------------"
     );
 
-    Serial.print("Raw ADC: ");
+    Serial.print("Raw ADC:     ");
 
     if (reading.rawValid)
     {
@@ -671,7 +641,7 @@ void printLightPageToSerial()
         Serial.println("INVALID");
     }
 
-    Serial.print("Light:   ");
+    Serial.print("Light:       ");
 
     if (reading.lightPercentValid)
     {
@@ -679,7 +649,6 @@ void printLightPageToSerial()
             reading.lightPercent,
             1
         );
-
         Serial.println(" %");
     }
     else
@@ -687,25 +656,76 @@ void printLightPageToSerial()
         Serial.println("INVALID");
     }
 
-    Serial.print("Mood:    ");
+    Serial.print("Condition:   ");
     Serial.println(
         lightConditionText(reading)
     );
 
-    Serial.print("Measured: ");
+    Serial.print("Measured at: ");
     Serial.print(
         reading.measuredAtMs
     );
-
     Serial.println(" ms");
 
     Serial.println(
         "Rotate = Page | Press = Menu"
     );
-
     Serial.println(
         "------------------------"
     );
+}
+
+void printActiveEnvironmentPageToSerial()
+{
+    if (
+        currentScreen != AppScreen::Detail ||
+        !isEnvironmentSelected()
+    )
+    {
+        return;
+    }
+
+    switch (environmentPage)
+    {
+        case EnvironmentPage::Climate:
+            printClimatePageToSerial();
+            break;
+
+        case EnvironmentPage::Light:
+            printLightPageToSerial();
+            break;
+    }
+}
+
+void updateSerialInterface(
+    uint32_t nowMs
+)
+{
+    if (
+        currentScreen != AppScreen::Detail ||
+        !isEnvironmentSelected()
+    )
+    {
+        serialPageRefreshRequested = false;
+        return;
+    }
+
+    const bool intervalElapsed =
+        nowMs - previousSerialPageMs >=
+        SerialUI::LIVE_REFRESH_INTERVAL_MS;
+
+    if (
+        !serialPageRefreshRequested &&
+        !intervalElapsed
+    )
+    {
+        return;
+    }
+
+    previousSerialPageMs = nowMs;
+    serialPageRefreshRequested = false;
+
+    printActiveEnvironmentPageToSerial();
 }
 
 void drawClimatePage()
@@ -734,25 +754,19 @@ void drawClimatePage()
 
     if (ahtReading.temperatureValid)
     {
-        const String temperatureText =
+        const String value =
             String(
                 ahtReading.temperatureC,
                 1
             );
 
         display.print(0, 15, "Temp");
-
         display.print(
             42,
             15,
-            temperatureText.c_str()
+            value.c_str()
         );
-
-        display.print(
-            78,
-            15,
-            "C"
-        );
+        display.print(78, 15, "C");
     }
     else
     {
@@ -765,25 +779,19 @@ void drawClimatePage()
 
     if (ahtReading.humidityValid)
     {
-        const String humidityText =
+        const String value =
             String(
                 ahtReading.humidityPercent,
                 1
             );
 
         display.print(0, 27, "Humidity");
-
         display.print(
             54,
             27,
-            humidityText.c_str()
+            value.c_str()
         );
-
-        display.print(
-            90,
-            27,
-            "%"
-        );
+        display.print(90, 27, "%");
     }
     else
     {
@@ -796,20 +804,18 @@ void drawClimatePage()
 
     if (bmpReading.pressureValid)
     {
-        const String pressureText =
+        const String value =
             String(
                 bmpReading.pressureHpa,
                 0
             );
 
         display.print(0, 39, "Pressure");
-
         display.print(
             54,
             39,
-            pressureText.c_str()
+            value.c_str()
         );
-
         display.print(
             84,
             39,
@@ -825,20 +831,12 @@ void drawClimatePage()
         );
     }
 
-    display.print(
-        0,
-        51,
-        "Control"
-    );
-
+    display.print(0, 51, "Control");
     display.print(
         48,
         51,
-        humidifierRequestedOn
-            ? "ON"
-            : "OFF"
+        humidityControlText()
     );
-
     display.print(
         78,
         51,
@@ -859,7 +857,7 @@ void drawLightPage()
     display.print(
         0,
         0,
-        "Environment 2/2"
+        "< Environment 2/2"
     );
 
     display.drawLine(
@@ -869,15 +867,11 @@ void drawLightPage()
         10
     );
 
-    display.print(
-        0,
-        16,
-        "Light:"
-    );
+    display.print(0, 16, "Light:");
 
     if (reading.lightPercentValid)
     {
-        const String percentageText =
+        const String value =
             String(
                 reading.lightPercent,
                 1
@@ -886,45 +880,27 @@ void drawLightPage()
         display.print(
             42,
             16,
-            percentageText.c_str()
+            value.c_str()
         );
-
-        display.print(
-            78,
-            16,
-            "%"
-        );
+        display.print(78, 16, "%");
     }
     else
     {
-        display.print(
-            42,
-            16,
-            "--"
-        );
+        display.print(42, 16, "--");
     }
 
-    display.print(
-        0,
-        30,
-        "Mood:"
-    );
-
+    display.print(0, 30, "Mood:");
     display.print(
         36,
         30,
         lightConditionText(reading)
     );
 
-    display.print(
-        0,
-        44,
-        "Raw:"
-    );
+    display.print(0, 44, "Raw:");
 
     if (reading.rawValid)
     {
-        const String rawText =
+        const String value =
             String(
                 reading.rawValue
             );
@@ -932,26 +908,21 @@ void drawLightPage()
         display.print(
             30,
             44,
-            rawText.c_str()
+            value.c_str()
         );
     }
     else
     {
-        display.print(
-            30,
-            44,
-            "--"
-        );
+        display.print(30, 44, "--");
     }
 
     display.print(
         0,
         56,
-        "< Rotate | << MENU"
+        "Rotate | Btn=Menu"
     );
 
     display.update();
-    printClimatePageToSerial();
 }
 
 void drawEnvironmentScreen()
@@ -1035,13 +1006,13 @@ void changeEnvironmentPage(
         : EnvironmentPage::Climate;
 
     drawEnvironmentScreen();
+    serialPageRefreshRequested = true;
 }
 
-void updateEnvironmentSensors()
+void updateEnvironmentSensors(
+    uint32_t nowMs
+)
 {
-    const uint32_t nowMs =
-        millis();
-
     aht20.update(nowMs);
     bmp280.update(nowMs);
     lightSensor.update(nowMs);
@@ -1138,10 +1109,6 @@ void setup()
         );
     }
 
-    /*
-     * Storage failure is non-fatal.
-     * Environmental control continues locally.
-     */
     Serial.print("LDR: ");
     Serial.println(
         lightReady
@@ -1154,11 +1121,9 @@ void setup()
     Serial.println(
         "Humidity control:"
     );
-
     Serial.println(
         "  ON below 75%"
     );
-
     Serial.println(
         "  OFF above 82%"
     );
@@ -1187,7 +1152,16 @@ void setup()
 
 void loop()
 {
-    updateEnvironmentSensors();
+    const uint32_t nowMs =
+        millis();
+
+    updateEnvironmentSensors(
+        nowMs
+    );
+
+    updateSerialInterface(
+        nowMs
+    );
 
     if (
         currentScreen == AppScreen::Detail &&
@@ -1219,7 +1193,6 @@ void loop()
                 case KSJ::InputEvent::RotateRight:
                 {
                     Serial.print("Menu: ");
-
                     Serial.println(
                         menu.selectedItem()
                     );
@@ -1239,10 +1212,12 @@ void loop()
                         {
                             environmentPage =
                                 EnvironmentPage::Climate;
+
+                            serialPageRefreshRequested =
+                                true;
                         }
 
                         Serial.print("Opened: ");
-
                         Serial.println(
                             menu.selectedItem()
                         );
@@ -1278,7 +1253,6 @@ void loop()
                 changeEnvironmentPage(
                     event
                 );
-
                 break;
             }
 
@@ -1289,6 +1263,9 @@ void loop()
             {
                 currentScreen =
                     AppScreen::Menu;
+
+                serialPageRefreshRequested =
+                    false;
 
                 Serial.println(
                     "Returned to menu"

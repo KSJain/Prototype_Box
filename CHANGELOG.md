@@ -2,7 +2,7 @@
 
 All notable changes to Prototype Box are documented here.
 
-## v0.5.0 — 2026-07-26
+## v0.5.1 — 2026-07-26
 
 ### Added
 
@@ -19,10 +19,23 @@ All notable changes to Prototype Box are documented here.
 
 ### Changed
 
-- Updated Prototype Box rotary encoder pins
-- Improved Environment screen spacing and readability
-- Simplified humidity-control display to `ON` and `OFF`
-- Reduced pressure precision on OLED to conserve display space
+- Updated KSJ_Environment to v0.2.1
+- Removed accidental raw ADC output from the light-sensor implementation
+- Made Serial output context-aware
+- Limited live Serial values to the active Environment detail page
+- Added a controlled two-second Serial refresh interval
+- Added immediate Serial updates when switching Climate and Light pages
+- Stopped live Environment output immediately after returning to the menu
+- Separated OLED rendering from Serial rendering
+
+### Verified
+
+- Climate page reports temperature, humidity, pressure, and control state
+- Light page reports raw ADC, calibrated percentage, condition, and timestamp
+- Rotary navigation switches pages on both OLED and Serial
+- Button press returns to the menu and stops live output
+- Humidity hysteresis continues to control the onboard LED
+- SD-card boot history continues to persist
 
 ### Preserved
 
