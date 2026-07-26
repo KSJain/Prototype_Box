@@ -5,7 +5,7 @@
 namespace Board
 {
     constexpr char NAME[] = "Prototype Box v1";
-    constexpr char VERSION[] = "0.4.0";
+    constexpr char VERSION[] = "0.5.0";
     constexpr char MCU[] = "ESP32 DevKit V1";
 }
 
@@ -17,6 +17,8 @@ namespace Pins
     constexpr uint8_t ROTARY_CLK = 27;
     constexpr uint8_t ROTARY_DT = 26;
     constexpr uint8_t ROTARY_SW = 25;
+
+    constexpr uint8_t LDR = 34;
 }
 
 namespace DisplayConfig

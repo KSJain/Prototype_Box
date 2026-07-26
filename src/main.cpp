@@ -10,6 +10,9 @@
 
 #include <KSJ_AHT20Sensor.h>
 #include <KSJ_BMP280Sensor.h>
+#include <KSJ_AnalogLightSensor.h>
+#include <AnalogLightConfig.h>
+#include <LightReading.h>
 
 #include <ControlAction.h>
 #include <ControlDecision.h>
@@ -30,6 +33,12 @@ enum class AppScreen : uint8_t
 {
     Menu,
     Detail
+};
+
+enum class EnvironmentPage : uint8_t
+{
+    Climate,
+    Light
 };
 
 namespace OutputPins
@@ -54,6 +63,30 @@ namespace StorageConfig
         "/boot_log.txt";
 }
 
+namespace LightCalibration
+{
+    /*
+     * Replace these with the final values from
+     * your Basic_Light calibration test.
+     *
+     * Leave some margin beyond ordinary readings.
+     */
+    constexpr uint16_t DARK_RAW = 650;
+    constexpr uint16_t BRIGHT_RAW = 3650;
+
+    /*
+     * true:
+     * higher raw ADC means brighter light.
+     *
+     * Change to false only if your tested circuit
+     * behaves in the opposite direction.
+     */
+    constexpr bool HIGHER_RAW_IS_BRIGHTER = true;
+
+    constexpr uint32_t REFRESH_INTERVAL_MS =
+        500;
+}
+
 KSJ::SSD1306Display display(
     DisplayConfig::WIDTH,
     DisplayConfig::HEIGHT,
@@ -73,6 +106,19 @@ KSJ::AHT20Sensor aht20(
 
 KSJ::BMP280Sensor bmp280(
     1000
+);
+
+const KSJ::AnalogLightConfig lightConfig
+{
+    LightCalibration::DARK_RAW,
+    LightCalibration::BRIGHT_RAW,
+    LightCalibration::HIGHER_RAW_IS_BRIGHTER,
+    LightCalibration::REFRESH_INTERVAL_MS
+};
+
+KSJ::AnalogLightSensor lightSensor(
+    Pins::LDR,
+    lightConfig
 );
 
 const KSJ::RangeControllerConfig humidityConfig
@@ -103,7 +149,11 @@ PrototypeBox::Menu menu;
 AppScreen currentScreen =
     AppScreen::Menu;
 
+EnvironmentPage environmentPage =
+    EnvironmentPage::Climate;
+
 bool environmentChanged = false;
+
 bool humidityDecisionValid = false;
 bool humidifierRequestedOn = false;
 
@@ -385,6 +435,41 @@ const char* humidityControlText()
         : "OFF";
 }
 
+const char* lightConditionText(
+    const KSJ::LightReading& reading
+)
+{
+    if (!reading.lightPercentValid)
+    {
+        return "Unavailable";
+    }
+
+    const float percent =
+        reading.lightPercent;
+
+    if (percent < 5.0F)
+    {
+        return "Dark";
+    }
+
+    if (percent < 20.0F)
+    {
+        return "Dim";
+    }
+
+    if (percent < 45.0F)
+    {
+        return "Shady";
+    }
+
+    if (percent < 75.0F)
+    {
+        return "Bright";
+    }
+
+    return "Very bright";
+}
+
 void applyHumidityDecision(
     const KSJ::ControlDecision& decision
 )
@@ -480,7 +565,150 @@ void updateHumidityControl()
     applyHumidityDecision(decision);
 }
 
-void drawEnvironmentScreen()
+void printClimatePageToSerial()
+{
+    const KSJ::EnvironmentReading& ahtReading =
+        aht20.reading();
+
+    const KSJ::EnvironmentReading& bmpReading =
+        bmp280.reading();
+
+    Serial.println();
+    Serial.println(
+        "Environment > Climate"
+    );
+
+    Serial.println(
+        "------------------------"
+    );
+
+    Serial.print("Temperature: ");
+
+    if (ahtReading.temperatureValid)
+    {
+        Serial.print(
+            ahtReading.temperatureC,
+            1
+        );
+
+        Serial.println(" C");
+    }
+    else
+    {
+        Serial.println("INVALID");
+    }
+
+    Serial.print("Humidity:    ");
+
+    if (ahtReading.humidityValid)
+    {
+        Serial.print(
+            ahtReading.humidityPercent,
+            1
+        );
+
+        Serial.println(" %");
+    }
+    else
+    {
+        Serial.println("INVALID");
+    }
+
+    Serial.print("Pressure:    ");
+
+    if (bmpReading.pressureValid)
+    {
+        Serial.print(
+            bmpReading.pressureHpa,
+            1
+        );
+
+        Serial.println(" hPa");
+    }
+    else
+    {
+        Serial.println("INVALID");
+    }
+
+    Serial.print("Control:     ");
+    Serial.println(
+        humidityControlText()
+    );
+
+    Serial.println(
+        "Rotate = Page | Press = Menu"
+    );
+
+    Serial.println(
+        "------------------------"
+    );
+}
+
+void printLightPageToSerial()
+{
+    const KSJ::LightReading& reading =
+        lightSensor.reading();
+
+    Serial.println();
+    Serial.println(
+        "Environment > Light"
+    );
+
+    Serial.println(
+        "------------------------"
+    );
+
+    Serial.print("Raw ADC: ");
+
+    if (reading.rawValid)
+    {
+        Serial.println(
+            reading.rawValue
+        );
+    }
+    else
+    {
+        Serial.println("INVALID");
+    }
+
+    Serial.print("Light:   ");
+
+    if (reading.lightPercentValid)
+    {
+        Serial.print(
+            reading.lightPercent,
+            1
+        );
+
+        Serial.println(" %");
+    }
+    else
+    {
+        Serial.println("INVALID");
+    }
+
+    Serial.print("Mood:    ");
+    Serial.println(
+        lightConditionText(reading)
+    );
+
+    Serial.print("Measured: ");
+    Serial.print(
+        reading.measuredAtMs
+    );
+
+    Serial.println(" ms");
+
+    Serial.println(
+        "Rotate = Page | Press = Menu"
+    );
+
+    Serial.println(
+        "------------------------"
+    );
+}
+
+void drawClimatePage()
 {
     const KSJ::EnvironmentReading& ahtReading =
         aht20.reading();
@@ -494,7 +722,7 @@ void drawEnvironmentScreen()
     display.print(
         0,
         0,
-        "RAMU Environment"
+        "Environment 1/2 >"
     );
 
     display.drawLine(
@@ -512,19 +740,27 @@ void drawEnvironmentScreen()
                 1
             );
 
-        display.print(0, 16, "T:");
+        display.print(0, 15, "Temp");
 
         display.print(
-            18,
-            16,
+            42,
+            15,
             temperatureText.c_str()
         );
 
-        display.print(54, 16, "C");
+        display.print(
+            78,
+            15,
+            "C"
+        );
     }
     else
     {
-        display.print(0, 16, "T: --");
+        display.print(
+            0,
+            15,
+            "Temp      --"
+        );
     }
 
     if (ahtReading.humidityValid)
@@ -535,19 +771,27 @@ void drawEnvironmentScreen()
                 1
             );
 
-        display.print(0, 28, "H:");
+        display.print(0, 27, "Humidity");
 
         display.print(
-            18,
-            28,
+            54,
+            27,
             humidityText.c_str()
         );
 
-        display.print(54, 28, "%");
+        display.print(
+            90,
+            27,
+            "%"
+        );
     }
     else
     {
-        display.print(0, 28, "H: --");
+        display.print(
+            0,
+            27,
+            "Humidity  --"
+        );
     }
 
     if (bmpReading.pressureValid)
@@ -555,41 +799,173 @@ void drawEnvironmentScreen()
         const String pressureText =
             String(
                 bmpReading.pressureHpa,
-                1
+                0
             );
 
-        display.print(0, 40, "P:");
+        display.print(0, 39, "Pressure");
 
         display.print(
-            18,
-            40,
+            54,
+            39,
             pressureText.c_str()
         );
 
         display.print(
-            72,
-            40,
+            84,
+            39,
             "hPa"
         );
     }
     else
     {
-        display.print(0, 40, "P: --");
+        display.print(
+            0,
+            39,
+            "Pressure  --"
+        );
     }
 
     display.print(
         0,
-        52,
-        "Control:"
+        51,
+        "Control"
     );
 
     display.print(
-        54,
-        52,
-        humidityControlText()
+        48,
+        51,
+        humidifierRequestedOn
+            ? "ON"
+            : "OFF"
+    );
+
+    display.print(
+        78,
+        51,
+        "Btn=Menu"
     );
 
     display.update();
+}
+
+void drawLightPage()
+{
+    const KSJ::LightReading& reading =
+        lightSensor.reading();
+
+    display.clear();
+    display.setTextSize(1);
+
+    display.print(
+        0,
+        0,
+        "Environment 2/2"
+    );
+
+    display.drawLine(
+        0,
+        10,
+        127,
+        10
+    );
+
+    display.print(
+        0,
+        16,
+        "Light:"
+    );
+
+    if (reading.lightPercentValid)
+    {
+        const String percentageText =
+            String(
+                reading.lightPercent,
+                1
+            );
+
+        display.print(
+            42,
+            16,
+            percentageText.c_str()
+        );
+
+        display.print(
+            78,
+            16,
+            "%"
+        );
+    }
+    else
+    {
+        display.print(
+            42,
+            16,
+            "--"
+        );
+    }
+
+    display.print(
+        0,
+        30,
+        "Mood:"
+    );
+
+    display.print(
+        36,
+        30,
+        lightConditionText(reading)
+    );
+
+    display.print(
+        0,
+        44,
+        "Raw:"
+    );
+
+    if (reading.rawValid)
+    {
+        const String rawText =
+            String(
+                reading.rawValue
+            );
+
+        display.print(
+            30,
+            44,
+            rawText.c_str()
+        );
+    }
+    else
+    {
+        display.print(
+            30,
+            44,
+            "--"
+        );
+    }
+
+    display.print(
+        0,
+        56,
+        "< Rotate | << MENU"
+    );
+
+    display.update();
+    printClimatePageToSerial();
+}
+
+void drawEnvironmentScreen()
+{
+    switch (environmentPage)
+    {
+        case EnvironmentPage::Climate:
+            drawClimatePage();
+            break;
+
+        case EnvironmentPage::Light:
+            drawLightPage();
+            break;
+    }
 }
 
 void drawGenericDetailScreen()
@@ -640,6 +1016,27 @@ void drawDetailScreen()
     drawGenericDetailScreen();
 }
 
+void changeEnvironmentPage(
+    KSJ::InputEvent event
+)
+{
+    if (
+        event != KSJ::InputEvent::RotateLeft &&
+        event != KSJ::InputEvent::RotateRight
+    )
+    {
+        return;
+    }
+
+    environmentPage =
+        environmentPage ==
+            EnvironmentPage::Climate
+        ? EnvironmentPage::Light
+        : EnvironmentPage::Climate;
+
+    drawEnvironmentScreen();
+}
+
 void updateEnvironmentSensors()
 {
     const uint32_t nowMs =
@@ -647,6 +1044,7 @@ void updateEnvironmentSensors()
 
     aht20.update(nowMs);
     bmp280.update(nowMs);
+    lightSensor.update(nowMs);
 
     updateHumidityControl();
 
@@ -660,6 +1058,12 @@ void updateEnvironmentSensors()
     {
         environmentChanged = true;
         bmp280.clearNewReadingFlag();
+    }
+
+    if (lightSensor.hasNewReading())
+    {
+        environmentChanged = true;
+        lightSensor.clearNewReadingFlag();
     }
 }
 
@@ -682,6 +1086,8 @@ void setup()
         Pins::SCL
     );
 
+    Wire.setClock(100000);
+
     if (!display.begin())
     {
         Serial.println(
@@ -702,6 +1108,9 @@ void setup()
 
     const bool bmp280Ready =
         bmp280.begin();
+
+    const bool lightReady =
+        lightSensor.begin();
 
     Serial.print("AHT20: ");
     Serial.println(
@@ -733,6 +1142,13 @@ void setup()
      * Storage failure is non-fatal.
      * Environmental control continues locally.
      */
+    Serial.print("LDR: ");
+    Serial.println(
+        lightReady
+            ? "READY"
+            : "INVALID CONFIG"
+    );
+
     initializeStorage();
 
     Serial.println(
@@ -752,6 +1168,7 @@ void setup()
     Serial.println("Display: ready");
     Serial.println("Input: ready");
     Serial.println("Environment: ready");
+    Serial.println("Light: ready");
     Serial.println("Control: ready");
     Serial.println("Output: ready");
 
@@ -818,6 +1235,12 @@ void loop()
                         currentScreen =
                             AppScreen::Detail;
 
+                        if (isEnvironmentSelected())
+                        {
+                            environmentPage =
+                                EnvironmentPage::Climate;
+                        }
+
                         Serial.print("Opened: ");
 
                         Serial.println(
@@ -842,7 +1265,27 @@ void loop()
 
         case AppScreen::Detail:
         {
-            if (event == KSJ::InputEvent::ButtonDown)
+            if (
+                isEnvironmentSelected() &&
+                (
+                    event ==
+                        KSJ::InputEvent::RotateLeft ||
+                    event ==
+                        KSJ::InputEvent::RotateRight
+                )
+            )
+            {
+                changeEnvironmentPage(
+                    event
+                );
+
+                break;
+            }
+
+            if (
+                event ==
+                KSJ::InputEvent::ButtonDown
+            )
             {
                 currentScreen =
                     AppScreen::Menu;

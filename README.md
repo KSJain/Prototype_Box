@@ -12,7 +12,7 @@ Every sensor, interface, controller, and hardware abstraction is first developed
 
 Rather than building one large application, Prototype Box grows by composing small, reusable libraries that each solve one problem well.
 
-Every feature is tested here first.
+Every feature is validated here before it becomes part of a larger system.
 
 ---
 
@@ -35,7 +35,7 @@ KSJ/
 
 ### Prototype Box Firmware
 
-**Current Release:** **v0.3.0**
+**Current Release:** **v0.5.0**
 
 ## Libraries
 
@@ -44,7 +44,7 @@ KSJ/
 | KSJ_Display     | v0.1.2  |
 | KSJ_Input       | v0.1.0  |
 | KSJ_UI          | v0.1.0  |
-| KSJ_Environment | v0.1.0  |
+| KSJ_Environment | v0.2.0  |
 | KSJ_Control     | v0.1.0  |
 | KSJ_Output      | v0.1.1  |
 | KSJ_Storage     | v0.1.0  |
@@ -60,7 +60,8 @@ KSJ/
 * Rotary Encoder
 * AHT20 Temperature & Humidity Sensor
 * BMP280 Pressure Sensor
-* SD Card Module
+* Analog LDR
+* Micro SD Card Module
 * Onboard Status LED
 
 ## Planned Hardware
@@ -70,38 +71,58 @@ KSJ/
 * MOSFET Driver
 * Peristaltic Pump
 * Solenoid Valve
-* Water Level Sensor
-* Capacitive Soil Moisture Sensors
-* Ambient Light Sensor
+* Capacitive Water Level Sensor
+* Capacitive Soil Moisture Sensor
 * CO₂ / VOC Sensor
+
+---
+
+# Current Features
+
+* Scrollable menu system
+* Multi-page Environment interface
+* Temperature sensing
+* Humidity sensing
+* Pressure sensing
+* Ambient light sensing
+* Human-readable light interpretation
+* Humidity control recommendations
+* Autonomous digital output
+* SD-card persistence
+* Persistent boot history
+* Local-first operation
 
 ---
 
 # Architecture
 
-Prototype Box is composed from independent libraries.
+Prototype Box is composed from reusable libraries.
 
 ```
 Observe
     │
     ▼
+
 KSJ_Input
 KSJ_Environment
 
     │
     ▼
+
 Think
 
 KSJ_Control
 
     │
     ▼
+
 Act
 
 KSJ_Output
 
     │
     ▼
+
 Present
 
 KSJ_UI
@@ -120,39 +141,12 @@ Libraries never become products.
 
 The KSJ ecosystem is designed to be learned one brick at a time.
 
+See:
+
 ```
-KSJ_Display
-
-↓
-
-KSJ_Input
-
-↓
-
-KSJ_UI
-
-↓
-
-KSJ_Environment
-
-↓
-
-KSJ_Control
-
-↓
-
-KSJ_Output
-
-↓
-
-Prototype Box
-
-↓
-
-RAMU Garden
+KSJ/
+└── LEARNING_PATH.md
 ```
-
-Each library introduces one major concept while remaining useful on its own.
 
 ---
 
@@ -190,9 +184,35 @@ pio device monitor
 
 # Pinout
 
-*Coming soon.*
+| Component      | Signal | GPIO |
+| -------------- | ------ | ---: |
+| OLED           | SDA    |   21 |
+| OLED           | SCL    |   22 |
+| Rotary Encoder | CLK    |   27 |
+| Rotary Encoder | DT     |   26 |
+| Rotary Encoder | Switch |   25 |
+| Analog LDR     | ADC    |   34 |
+| SD Card        | CS     |    5 |
+| SD Card        | SCK    |   18 |
+| SD Card        | MISO   |   19 |
+| SD Card        | MOSI   |   23 |
+| Onboard LED    | Output |    2 |
 
-Prototype Box maintains a standardized hardware mapping so examples remain consistent across every KSJ library.
+### LDR Voltage Divider
+
+```text
+3V3
+ │
+LDR
+ │
+├── GPIO34
+ │
+10 kΩ
+ │
+GND
+```
+
+Prototype Box maintains a standardized hardware mapping so every KSJ library example can be connected without changing pin assignments.
 
 ---
 
@@ -204,36 +224,39 @@ Prototype Box maintains a standardized hardware mapping so examples remain consi
 * ✅ Rotary input
 * ✅ Menu framework
 * ✅ Environment sensing
+* ✅ Ambient light sensing
 * ✅ Autonomous control decisions
 * ✅ Physical digital outputs
 * ✅ Modular architecture
 * ✅ SD-card persistence
 * ✅ Persistent boot history
-* ✅ Graceful storage failure handling
 
 ## Next
 
-* ⬜ KSJ_Storage
-* ⬜ KSJ_Time
-* ⬜ KSJ_Comms
-* ⬜ Metrics & Statistics
-* ⬜ Event Logger
-* ⬜ ESP-NOW Networking
+* ⬜ Context-aware Serial interface
+* ⬜ Four-LED status indicators
+* ⬜ Relay hardware support
+* ⬜ Capacitive water-level sensing
+* ⬜ Condensate pump controller
+* ⬜ 128×32 OLED support
+* ⬜ Runtime statistics
+* ⬜ Event logging
 
 ## Future
 
 * ⬜ Digital Gardener
 * ⬜ Mushroom Chamber
 * ⬜ Basement Water Monitor
-* ⬜ OTA Updates
-* ⬜ Mobile Companion App
-* ⬜ Web Dashboard
+* ⬜ ESP-NOW networking
+* ⬜ OTA updates
+* ⬜ Mobile companion app
+* ⬜ Web dashboard
 
 ---
 
 # Documentation
 
-Additional documentation is available under the **KSJ** folder.
+Additional documentation is available in the **KSJ** folder.
 
 ```
 KSJ/
@@ -249,21 +272,13 @@ CONTRIBUTING.md
 
 ---
 
-# Gallery
-
-Coming soon.
-
-Future revisions will include photographs, wiring diagrams, hardware revisions, and demonstrations.
-
----
-
 # FAQ
 
 ### Why build libraries instead of one application?
 
 Libraries are easier to understand, test, reuse, and improve independently.
 
-Prototype Box demonstrates how they work together as a complete system.
+Prototype Box demonstrates how they work together as a complete embedded system.
 
 ---
 
@@ -271,7 +286,7 @@ Prototype Box demonstrates how they work together as a complete system.
 
 Automation should continue operating even when the Internet does not.
 
-Cloud services should extend the system—not become a dependency for its basic operation.
+Cloud services should extend the system—not become a dependency.
 
 ---
 
@@ -281,7 +296,7 @@ Prototype Box is intentionally modular.
 
 It is not the final product.
 
-It is the place where ideas become reliable.
+It is where ideas become reliable.
 
 Every library begins here.
 
