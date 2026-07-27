@@ -4,9 +4,26 @@
 
 namespace Board
 {
-    constexpr char NAME[] = "Prototype Box v1";
-    constexpr char VERSION[] = "0.5.0";
-    constexpr char MCU[] = "ESP32 DevKit V1";
+    constexpr char NAME[] =
+        "Prototype Box v1";
+
+    constexpr char VERSION[] =
+        "0.6.0";
+
+    constexpr char MCU[] =
+        "ESP32 DevKit V1";
+}
+
+namespace DisplayConfig
+{
+    constexpr uint8_t WIDTH =
+        128;
+
+    constexpr uint8_t HEIGHT =
+        64;
+
+    constexpr uint8_t I2C_ADDRESS =
+        0x3C;
 }
 
 namespace Pins
@@ -19,17 +36,7 @@ namespace Pins
     constexpr uint8_t ROTARY_SW = 25;
 
     constexpr uint8_t LDR = 34;
-}
 
-namespace DisplayConfig
-{
-    constexpr uint8_t WIDTH = 128;
-    constexpr uint8_t HEIGHT = 64;
-    constexpr uint8_t I2C_ADDRESS = 0x3C;
-}
-
-namespace Features
-{
-    constexpr bool HAS_DISPLAY = true;
-    constexpr bool HAS_ROTARY = true;
+    constexpr uint8_t ADDRESSABLE_LED_DATA =
+        12;
 }
