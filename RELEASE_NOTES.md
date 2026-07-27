@@ -1,30 +1,31 @@
-# Prototype Box v0.5.1
+# Prototype Box v0.6.0
 
-Prototype Box now treats Serial as a deliberate second presentation surface rather than a debug stream.
+Prototype Box now includes a nine-pixel addressable status strip powered by KSJ_Output v0.3.0.
 
-## Highlights
+The strip provides immediate physical feedback without requiring the OLED or Serial monitor.
 
-- Context-aware Serial Environment pages
-- Two-second live refresh while Environment is open
-- Immediate output when changing Climate and Light pages
-- Live output stops when returning to the main menu
-- Removed continuous raw LDR debug values
-- Updated KSJ_Environment dependency to v0.2.1
-
-## Verified Behavior
+## Status Language
 
 ```text
-Main Menu
-→ navigation events only
-
-Environment > Climate
-→ temperature, humidity, pressure, and control state
-
-Environment > Light
-→ raw ADC, calibrated light percentage, condition, and timestamp
-
-Press = Menu
-→ live Environment output stops
+Yellow → Booting
+Green  → Ready
+Blue   → Humidification requested
+Red    → Fault
 ```
 
-This patch preserves the existing OLED interface, humidity control, onboard LED behavior, and persistent SD-card boot history.
+## Verified Integration
+
+* Nine-pixel WS2812-compatible strip
+* Addressable strip on GPIO12
+* AHT20 temperature and humidity sensing
+* BMP280 temperature and pressure sensing
+* LDR ambient-light sensing
+* Humidity hysteresis control
+* Onboard LED output
+* OLED navigation
+* Context-aware Serial interface
+* SD-card boot persistence
+
+The boot log reached firmware `0.6.0` while preserving all existing system behavior.
+
+This release adds a new presentation surface without changing the sensor, control, storage, or menu architecture.

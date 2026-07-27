@@ -44,9 +44,9 @@ KSJ/
 | KSJ_Display     | v0.1.2  |
 | KSJ_Input       | v0.1.0  |
 | KSJ_UI          | v0.1.0  |
-| KSJ_Environment | v0.2.0  |
+| KSJ_Environment | v0.2.1  |
 | KSJ_Control     | v0.1.0  |
-| KSJ_Output      | v0.1.1  |
+| KSJ_Output      | v0.3.0  |
 | KSJ_Storage     | v0.1.0  |
 
 ---
