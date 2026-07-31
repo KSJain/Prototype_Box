@@ -168,14 +168,11 @@ KSJ::SDStorage storage(
 
 PrototypeBox::Menu menu;
 
-AppScreen currentScreen =
-    AppScreen::Menu;
+AppScreen currentScreen = AppScreen::Menu;
 
-EnvironmentPage environmentPage =
-    EnvironmentPage::Climate;
+EnvironmentPage environmentPage = EnvironmentPage::Climate;
 
-SystemLightState systemLightState =
-    SystemLightState::Booting;
+SystemLightState systemLightState = SystemLightState::Booting;
 
 bool environmentChanged = false;
 
@@ -1296,254 +1293,120 @@ void updateEnvironmentSensors(
     }
 }
 
-void setup()
-{
+void setup() {
     Serial.begin(115200);
     delay(500);
 
     Serial.println();
-
-    Serial.println(
-        Board::NAME
-    );
+    Serial.println(Board::NAME);
 
     Serial.print("Version: ");
-
-    Serial.println(
-        Board::VERSION
-    );
+    Serial.println(Board::VERSION);
 
     Serial.print("MCU: ");
-
-    Serial.println(
-        Board::MCU
-    );
+    Serial.println(Board::MCU);
 
     initializeAddressableStrip();
 
-    Wire.begin(
-        Pins::SDA,
-        Pins::SCL
-    );
+    Wire.begin(Pins::SDA, Pins::SCL);
+    Wire.setClock(100000);
 
-    Wire.setClock(
-        100000
-    );
-
-    if (!display.begin())
-    {
-        Serial.println(
-            "Display initialization failed."
-        );
-
-        setSystemLightState(
-            SystemLightState::Fault
-        );
-
-        while (true)
-        {
-            delay(1000);
-        }
+    if (!display.begin()) {
+        Serial.println("Display initialization failed.");
+        setSystemLightState(SystemLightState::Fault);
+        while (true) { delay(1000); }
     }
 
     encoder.begin();
 
     humidifierOutput.begin();
 
-    const bool aht20Ready =
-        aht20.begin();
-
-    const bool bmp280Ready =
-        bmp280.begin();
-
-    const bool lightReady =
-        lightSensor.begin();
+    const bool aht20Ready = aht20.begin();
+    const bool bmp280Ready = bmp280.begin();
+    const bool lightReady = lightSensor.begin();
 
     Serial.print("AHT20: ");
-
-    Serial.println(
-        aht20Ready
-            ? "READY"
-            : "NOT FOUND"
-    );
+    Serial.println(aht20Ready ? "READY" : "NOT FOUND");
 
     Serial.print("BMP280: ");
+    Serial.println(bmp280Ready? "READY": "NOT FOUND");
 
-    Serial.println(
-        bmp280Ready
-            ? "READY"
-            : "NOT FOUND"
-    );
-
-    if (bmp280Ready)
-    {
-        Serial.print(
-            "BMP280 address: 0x"
-        );
-
-        Serial.println(
-            bmp280.detectedAddress(),
-            HEX
-        );
+    if (bmp280Ready){
+        Serial.print("BMP280 address: 0x");
+        Serial.println(bmp280.detectedAddress(),HEX);
     }
 
     Serial.print("LDR: ");
-
-    Serial.println(
-        lightReady
-            ? "READY"
-            : "INVALID CONFIG"
-    );
+    Serial.println(lightReady ? "READY" : "INVALID CONFIG");
 
     initializeStorage();
 
-    Serial.println(
-        "Humidity control:"
-    );
+    Serial.println("Humidity control:");
+    Serial.println("  ON below 75%");
+    Serial.println("  OFF above 82%");
 
-    Serial.println(
-        "  ON below 75%"
-    );
+    const bool requiredSystemsReady = aht20Ready && bmp280Ready && lightReady;
 
-    Serial.println(
-        "  OFF above 82%"
-    );
-
-    const bool requiredSystemsReady =
-        aht20Ready &&
-        bmp280Ready &&
-        lightReady;
-
-    if (!requiredSystemsReady)
-    {
-        setSystemLightState(
-            SystemLightState::Fault
-        );
-    }
-    else
-    {
-        setSystemLightState(
-            SystemLightState::Ready
-        );
+    if (!requiredSystemsReady) {
+        setSystemLightState(SystemLightState::Fault);
+    } else {
+        setSystemLightState(SystemLightState::Ready);
     }
 
     menu.draw(display);
 
-    Serial.println(
-        "Display: ready"
-    );
+    Serial.println("Display: ready");
 
-    Serial.println(
-        "Input: ready"
-    );
+    Serial.println("Input: ready");
 
-    Serial.println(
-        "Environment: ready"
-    );
+    Serial.println("Environment: ready");
 
-    Serial.println(
-        "Light: ready"
-    );
+    Serial.println("Light: ready");
 
-    Serial.println(
-        "Control: ready"
-    );
+    Serial.println("Control: ready");
 
-    Serial.println(
-        "Output: ready"
-    );
+    Serial.println("Output: ready");
 
-    Serial.print(
-        "Addressable strip: "
-    );
+    Serial.print("Addressable strip: ");
+    Serial.println(addressableStripReady ? "ready" : "unavailable");
 
-    Serial.println(
-        addressableStripReady
-            ? "ready"
-            : "unavailable"
-    );
+    Serial.print("Storage: ");
+    Serial.println(storageReady ? "ready" : "unavailable");
 
-    Serial.print(
-        "Storage: "
-    );
+    Serial.print("Persistent boot count: ");
+    Serial.println(bootCount);
 
-    Serial.println(
-        storageReady
-            ? "ready"
-            : "unavailable"
-    );
-
-    Serial.print(
-        "Persistent boot count: "
-    );
-
-    Serial.println(
-        bootCount
-    );
-
-    Serial.println(
-        "Prototype Box: ready"
-    );
+    Serial.println("Prototype Box: ready");
 }
 
-void loop()
-{
-    const uint32_t nowMs =
-        millis();
+void loop() {
 
-    updateEnvironmentSensors(
-        nowMs
-    );
+    const uint32_t nowMs = millis();
 
-    updateSerialInterface(
-        nowMs
-    );
+    updateEnvironmentSensors(nowMs);
 
-    if (
-        currentScreen ==
-            AppScreen::Detail &&
-        isEnvironmentSelected() &&
-        environmentChanged
-    )
-    {
+    updateSerialInterface(nowMs);
+
+    if (currentScreen == AppScreen::Detail && isEnvironmentSelected() && environmentChanged) {
         drawEnvironmentScreen();
-
-        environmentChanged =
-            false;
+        environmentChanged = false;
     }
 
-    const KSJ::InputEvent event =
-        encoder.update();
+    const KSJ::InputEvent event = encoder.update();
 
-    if (
-        event ==
-        KSJ::InputEvent::None
-    )
-    {
-        return;
-    }
+    if (event == KSJ::InputEvent::None) { return; }
 
-    switch (currentScreen)
-    {
-        case AppScreen::Menu:
-        {
+    switch (currentScreen) {
+        case AppScreen::Menu: {
             menu.update(event);
 
-            switch (event)
-            {
+            switch (event) {
                 case KSJ::InputEvent::RotateLeft:
-                case KSJ::InputEvent::RotateRight:
-                {
-                    Serial.print(
-                        "Menu: "
-                    );
-
-                    Serial.println(
-                        menu.selectedItem()
-                    );
-
+                case KSJ::InputEvent::RotateRight: {
+                    Serial.print("Menu: ");
+                    Serial.println(menu.selectedItem());
+                    
                     menu.draw(display);
-
                     break;
                 }
 
@@ -1593,44 +1456,25 @@ void loop()
             break;
         }
 
-        case AppScreen::Detail:
-        {
-            if (
-                isEnvironmentSelected() &&
-                (
-                    event ==
-                        KSJ::InputEvent::RotateLeft ||
-                    event ==
-                        KSJ::InputEvent::RotateRight
+        case AppScreen::Detail: {
+            if (isEnvironmentSelected() && (
+                    event == KSJ::InputEvent::RotateLeft ||
+                    event == KSJ::InputEvent::RotateRight
                 )
-            )
-            {
-                changeEnvironmentPage(
-                    event
-                );
-
+            ) {
+                changeEnvironmentPage(event);
                 break;
             }
 
-            if (
-                event ==
-                KSJ::InputEvent::ButtonDown
-            )
-            {
-                currentScreen =
-                    AppScreen::Menu;
+            if ( event == KSJ::InputEvent::ButtonDown) {
+                currentScreen = AppScreen::Menu;
 
-                serialPageRefreshRequested =
-                    false;
+                serialPageRefreshRequested = false;
 
-                Serial.println(
-                    "Returned to menu"
-                );
-
+                Serial.println("Returned to menu");
                 menu.draw(display);
 
-                environmentChanged =
-                    false;
+                environmentChanged = false;
             }
 
             break;
