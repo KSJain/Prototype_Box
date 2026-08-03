@@ -99,6 +99,7 @@ KSJ/
 ---
 
 # Architecture
+Prototype Box is the laboratory where reusable engineering capabilities are discovered and validated.
 
 Prototype Box is composed from reusable libraries.
 
@@ -134,6 +135,14 @@ Serial Interface
 Remember
 
 KSJ_Storage
+
+Prototype Box
+      ↓
+discovers reusable bricks
+      ↓
+KSJ Libraries
+      ↓
+compose dependable RAMU Nodes
 ```
 
 Each library has one responsibility.
