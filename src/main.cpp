@@ -1203,6 +1203,10 @@ void loop() {
         nowMs,
         lightSensor.reading()
     );
+
+    storageReady =
+        storageService.isReady();
+
     updateSerialInterface(nowMs);
 
     if (currentScreen == AppScreen::Detail && isEnvironmentSelected() && environmentChanged) {
