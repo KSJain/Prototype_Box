@@ -27,6 +27,7 @@
 #include <StorageInfo.h>
 #include <StorageResult.h>
 #include <StorageStatus.h>
+#include "StorageService.h"
 
 #include "Menu.h"
 #include "PrototypeBoxConfig.h"
@@ -69,9 +70,6 @@ namespace StorageConfig
 {
     constexpr uint32_t SPI_FREQUENCY_HZ =
         4000000;
-
-    constexpr char BOOT_LOG_PATH[] =
-        "/boot_log.txt";
 }
 
 namespace LightCalibration
@@ -252,6 +250,11 @@ const char* cardTypeName(
     }
 }
 
+StorageService storageService(
+    sdSpi,
+    storage
+);
+
 const char* systemLightStateName(
     SystemLightState state
 )
@@ -353,202 +356,6 @@ bool initializeAddressableStrip()
     );
 
     return true;
-}
-
-uint32_t countLines(
-    const String& text
-)
-{
-    if (text.length() == 0)
-    {
-        return 0;
-    }
-
-    uint32_t lineCount = 0;
-
-    for (
-        size_t index = 0;
-        index < text.length();
-        ++index
-    )
-    {
-        if (text[index] == '\n')
-        {
-            ++lineCount;
-        }
-    }
-
-    if (text[text.length() - 1] != '\n')
-    {
-        ++lineCount;
-    }
-
-    return lineCount;
-}
-
-void printStorageInfo()
-{
-    const KSJ::StorageInfo info =
-        storage.info();
-
-    if (!info.valid)
-    {
-        Serial.println(
-            "Storage information unavailable."
-        );
-
-        return;
-    }
-
-    constexpr uint64_t BYTES_PER_MB =
-        1024ULL * 1024ULL;
-
-    Serial.print("Card type: ");
-
-    Serial.println(
-        cardTypeName(info.cardType)
-    );
-
-    Serial.print("Card size: ");
-
-    Serial.print(
-        info.cardSizeBytes /
-        BYTES_PER_MB
-    );
-
-    Serial.println(" MB");
-
-    Serial.print("Filesystem size: ");
-
-    Serial.print(
-        info.totalBytes /
-        BYTES_PER_MB
-    );
-
-    Serial.println(" MB");
-
-    Serial.print("Used space: ");
-
-    Serial.print(
-        info.usedBytes /
-        BYTES_PER_MB
-    );
-
-    Serial.println(" MB");
-}
-
-void recordBoot()
-{
-    if (!storageReady)
-    {
-        return;
-    }
-
-    String existingBootLog;
-
-    const KSJ::StorageResult readResult =
-        storage.readText(
-            StorageConfig::BOOT_LOG_PATH,
-            existingBootLog
-        );
-
-    bootCount =
-        readResult.success
-            ? countLines(existingBootLog)
-            : 0;
-
-    ++bootCount;
-
-    String bootRecord;
-
-    bootRecord += "boot=";
-    bootRecord += String(bootCount);
-
-    bootRecord += ",firmware=";
-    bootRecord += Board::VERSION;
-
-    bootRecord += ",uptime_ms=";
-    bootRecord += String(millis());
-
-    bootRecord += "\n";
-
-    KSJ::StorageResult writeResult;
-
-    if (bootCount == 1)
-    {
-        writeResult =
-            storage.writeText(
-                StorageConfig::BOOT_LOG_PATH,
-                bootRecord.c_str()
-            );
-    }
-    else
-    {
-        writeResult =
-            storage.appendText(
-                StorageConfig::BOOT_LOG_PATH,
-                bootRecord.c_str()
-            );
-    }
-
-    if (!writeResult.success)
-    {
-        Serial.print(
-            "Boot record failed: "
-        );
-
-        Serial.println(
-            storageStatusName(
-                writeResult.status
-            )
-        );
-
-        return;
-    }
-
-    Serial.print(
-        "Boot record saved. Boot #"
-    );
-
-    Serial.println(bootCount);
-}
-
-void initializeStorage()
-{
-    sdSpi.begin(
-        StoragePins::SCK,
-        StoragePins::MISO,
-        StoragePins::MOSI,
-        StoragePins::CS
-    );
-
-    const KSJ::StorageResult mountResult =
-        storage.begin();
-
-    storageReady =
-        mountResult.success;
-
-    Serial.print("Storage: ");
-
-    Serial.println(
-        storageReady
-            ? "READY"
-            : storageStatusName(
-                mountResult.status
-            )
-    );
-
-    if (!storageReady)
-    {
-        Serial.println(
-            "Prototype Box will continue without persistence."
-        );
-
-        return;
-    }
-
-    printStorageInfo();
-    recordBoot();
 }
 
 const char* humidityControlText()
@@ -1339,7 +1146,14 @@ void setup() {
     Serial.print("LDR: ");
     Serial.println(lightReady ? "READY" : "INVALID CONFIG");
 
-    initializeStorage();
+    storageReady =
+    storageService.begin(
+        Board::VERSION,
+        Board::MCU
+    );
+
+    bootCount =
+    storageService.sessionNumber();
 
     Serial.println("Humidity control:");
     Serial.println("  ON below 75%");
@@ -1385,6 +1199,10 @@ void loop() {
 
     updateEnvironmentSensors(nowMs);
 
+    storageService.update(
+        nowMs,
+        lightSensor.reading()
+    );
     updateSerialInterface(nowMs);
 
     if (currentScreen == AppScreen::Detail && isEnvironmentSelected() && environmentChanged) {
