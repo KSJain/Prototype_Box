@@ -14,8 +14,7 @@
 #include <ControlAction.h>
 #include "ControlService.h"
 
-#include <KSJ_AddressableStrip.h>
-#include <LedColor.h>
+#include "StatusService.h"
 
 #include <KSJ_SDStorage.h>
 #include <StorageInfo.h>
@@ -38,13 +37,6 @@ enum class EnvironmentPage : uint8_t
     Light
 };
 
-enum class SystemLightState : uint8_t
-{
-    Booting,
-    Ready,
-    Humidifying,
-    Fault
-};
 
 namespace OutputPins
 {
@@ -102,9 +94,10 @@ ControlService controlService(
     true
 );
 
-KSJ::AddressableStrip statusStrip(
+StatusService statusService(
     AddressableConfig::PIXEL_COUNT,
-    Pins::ADDRESSABLE_LED_DATA
+    Pins::ADDRESSABLE_LED_DATA,
+    AddressableConfig::BRIGHTNESS
 );
 
 SPIClass sdSpi(VSPI);
@@ -121,12 +114,9 @@ AppScreen currentScreen = AppScreen::Menu;
 
 EnvironmentPage environmentPage = EnvironmentPage::Climate;
 
-SystemLightState systemLightState = SystemLightState::Booting;
-
 bool environmentChanged = false;
 
 bool storageReady = false;
-bool addressableStripReady = false;
 
 uint32_t bootCount = 0;
 
@@ -203,109 +193,6 @@ StorageService storageService(
     storage
 );
 
-const char* systemLightStateName(
-    SystemLightState state
-)
-{
-    switch (state)
-    {
-        case SystemLightState::Booting:
-            return "BOOTING";
-
-        case SystemLightState::Ready:
-            return "READY";
-
-        case SystemLightState::Humidifying:
-            return "HUMIDIFYING";
-
-        case SystemLightState::Fault:
-            return "FAULT";
-
-        default:
-            return "UNKNOWN";
-    }
-}
-
-KSJ::LedColor colorForSystemState(
-    SystemLightState state
-)
-{
-    switch (state)
-    {
-        case SystemLightState::Booting:
-            return KSJ::LedColor::yellow();
-
-        case SystemLightState::Ready:
-            return KSJ::LedColor::greenColor();
-
-        case SystemLightState::Humidifying:
-            return KSJ::LedColor::blueColor();
-
-        case SystemLightState::Fault:
-            return KSJ::LedColor::redColor();
-
-        default:
-            return KSJ::LedColor::off();
-    }
-}
-
-void setSystemLightState(
-    SystemLightState state
-)
-{
-    systemLightState = state;
-
-    if (!addressableStripReady)
-    {
-        return;
-    }
-
-    statusStrip.fill(
-        colorForSystemState(state)
-    );
-
-    statusStrip.show();
-
-    Serial.print(
-        "Status strip: "
-    );
-
-    Serial.println(
-        systemLightStateName(state)
-    );
-}
-
-bool initializeAddressableStrip()
-{
-    statusStrip.setBrightness(
-        AddressableConfig::BRIGHTNESS
-    );
-
-    addressableStripReady =
-        statusStrip.begin();
-
-    Serial.print(
-        "Addressable strip: "
-    );
-
-    Serial.println(
-        addressableStripReady
-            ? "READY"
-            : "FAILED"
-    );
-
-    if (!addressableStripReady)
-    {
-        return false;
-    }
-
-    setSystemLightState(
-        SystemLightState::Booting
-    );
-
-    return true;
-}
-
 const char* humidityControlText()
 {
     return controlService.statusText();
@@ -355,9 +242,7 @@ void updateHumidityControl()
 
     if (!controlService.isValid())
     {
-        setSystemLightState(
-            SystemLightState::Fault
-        );
+        statusService.setFault();
 
         return;
     }
@@ -365,15 +250,11 @@ void updateHumidityControl()
     switch (action)
     {
         case KSJ::ControlAction::TurnOn:
-            setSystemLightState(
-                SystemLightState::Humidifying
-            );
+            statusService.setHumidifying();
             break;
 
         case KSJ::ControlAction::TurnOff:
-            setSystemLightState(
-                SystemLightState::Ready
-            );
+            statusService.setReady();
             break;
 
         case KSJ::ControlAction::Hold:
@@ -457,9 +338,7 @@ void printClimatePageToSerial()
     Serial.print("Status LED:  ");
 
     Serial.println(
-        systemLightStateName(
-            systemLightState
-        )
+        statusService.statusText()
     );
 
     Serial.println(
@@ -982,14 +861,15 @@ void setup() {
     Serial.print("MCU: ");
     Serial.println(Board::MCU);
 
-    initializeAddressableStrip();
+    const bool statusReady =
+        statusService.begin();
 
     Wire.begin(Pins::SDA, Pins::SCL);
     Wire.setClock(100000);
 
     if (!display.begin()) {
         Serial.println("Display initialization failed.");
-        setSystemLightState(SystemLightState::Fault);
+        statusService.setFault();
         while (true) { delay(1000); }
     }
 
@@ -1029,9 +909,9 @@ void setup() {
     const bool requiredSystemsReady = environmentReady;
 
     if (!requiredSystemsReady) {
-        setSystemLightState(SystemLightState::Fault);
+        statusService.setFault();
     } else {
-        setSystemLightState(SystemLightState::Ready);
+        statusService.setReady();
     }
 
     menu.draw(display);
@@ -1059,7 +939,11 @@ void setup() {
     );
 
     Serial.print("Addressable strip: ");
-    Serial.println(addressableStripReady ? "ready" : "unavailable");
+    Serial.println(
+        statusReady
+            ? "ready"
+            : "unavailable"
+    );
 
     Serial.print("Storage: ");
     Serial.println(storageReady ? "ready" : "unavailable");
