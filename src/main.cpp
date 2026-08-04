@@ -72,21 +72,6 @@ namespace StorageConfig
         4000000;
 }
 
-namespace LightCalibration
-{
-    constexpr uint16_t DARK_RAW =
-        650;
-
-    constexpr uint16_t BRIGHT_RAW =
-        3650;
-
-    constexpr bool HIGHER_RAW_IS_BRIGHTER =
-        true;
-
-    constexpr uint32_t REFRESH_INTERVAL_MS =
-        500;
-}
-
 namespace AddressableConfig
 {
     constexpr uint16_t PIXEL_COUNT =
@@ -116,19 +101,19 @@ KSJ::RotaryEncoder encoder(
 
 KSJ::AHT20Sensor aht20(
     Wire,
-    2000
+    SensorConfig::AHT20_INTERVAL_MS
 );
 
 KSJ::BMP280Sensor bmp280(
-    1000
+    SensorConfig::BMP280_INTERVAL_MS
 );
 
 const KSJ::AnalogLightConfig lightConfig
 {
-    LightCalibration::DARK_RAW,
-    LightCalibration::BRIGHT_RAW,
-    LightCalibration::HIGHER_RAW_IS_BRIGHTER,
-    LightCalibration::REFRESH_INTERVAL_MS
+    SensorConfig::LDR_DARK_RAW,
+    SensorConfig::LDR_BRIGHT_RAW,
+    SensorConfig::LDR_HIGHER_RAW_IS_BRIGHTER,
+    SensorConfig::LDR_INTERVAL_MS
 };
 
 KSJ::AnalogLightSensor lightSensor(
@@ -138,8 +123,8 @@ KSJ::AnalogLightSensor lightSensor(
 
 const KSJ::RangeControllerConfig humidityConfig
 {
-    75.0F,
-    82.0F
+    SensorConfig::HUMIDITY_ON_BELOW_PERCENT,
+    SensorConfig::HUMIDITY_OFF_ABOVE_PERCENT
 };
 
 KSJ::RangeController humidityController(
@@ -1156,8 +1141,20 @@ void setup() {
     storageService.sessionNumber();
 
     Serial.println("Humidity control:");
-    Serial.println("  ON below 75%");
-    Serial.println("  OFF above 82%");
+
+    Serial.print("  ON below ");
+    Serial.print(
+        SensorConfig::HUMIDITY_ON_BELOW_PERCENT,
+        1
+    );
+    Serial.println("%");
+
+    Serial.print("  OFF above ");
+    Serial.print(
+        SensorConfig::HUMIDITY_OFF_ABOVE_PERCENT,
+        1
+    );
+    Serial.println("%");
 
     const bool requiredSystemsReady = aht20Ready && bmp280Ready && lightReady;
 
