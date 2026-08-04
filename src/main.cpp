@@ -23,19 +23,8 @@
 #include "StorageService.h"
 
 #include "Menu.h"
+#include "NavigationService.h"
 #include "PrototypeBoxConfig.h"
-
-enum class AppScreen : uint8_t
-{
-    Menu,
-    Detail
-};
-
-enum class EnvironmentPage : uint8_t
-{
-    Climate,
-    Light
-};
 
 
 namespace OutputPins
@@ -110,9 +99,9 @@ KSJ::SDStorage storage(
 
 PrototypeBox::Menu menu;
 
-AppScreen currentScreen = AppScreen::Menu;
-
-EnvironmentPage environmentPage = EnvironmentPage::Climate;
+NavigationService navigationService(
+    menu
+);
 
 bool environmentChanged = false;
 
@@ -123,14 +112,6 @@ uint32_t bootCount = 0;
 uint32_t previousSerialPageMs = 0;
 
 bool serialPageRefreshRequested = false;
-
-bool isEnvironmentSelected()
-{
-    return std::strcmp(
-        menu.selectedItem(),
-        "Environment"
-    ) == 0;
-}
 
 const char* storageStatusName(
     KSJ::StorageStatus status
@@ -420,20 +401,20 @@ void printLightPageToSerial()
 void printActiveEnvironmentPageToSerial()
 {
     if (
-        currentScreen != AppScreen::Detail ||
-        !isEnvironmentSelected()
+        !navigationService.isDetailScreen() ||
+        !navigationService.isEnvironmentSelected()
     )
     {
         return;
     }
 
-    switch (environmentPage)
+    switch (navigationService.environmentPage())
     {
-        case EnvironmentPage::Climate:
+        case NavigationPage::Climate:
             printClimatePageToSerial();
             break;
 
-        case EnvironmentPage::Light:
+        case NavigationPage::Light:
             printLightPageToSerial();
             break;
     }
@@ -444,8 +425,8 @@ void updateSerialInterface(
 )
 {
     if (
-        currentScreen != AppScreen::Detail ||
-        !isEnvironmentSelected()
+        !navigationService.isDetailScreen() ||
+        !navigationService.isEnvironmentSelected()
     )
     {
         serialPageRefreshRequested =
@@ -733,13 +714,13 @@ void drawLightPage()
 
 void drawEnvironmentScreen()
 {
-    switch (environmentPage)
+    switch (navigationService.environmentPage())
     {
-        case EnvironmentPage::Climate:
+        case NavigationPage::Climate:
             drawClimatePage();
             break;
 
-        case EnvironmentPage::Light:
+        case NavigationPage::Light:
             drawLightPage();
             break;
     }
@@ -768,7 +749,7 @@ void drawGenericDetailScreen()
     display.print(
         0,
         20,
-        menu.selectedItem()
+        navigationService.selectedItem()
     );
 
     display.setTextSize(1);
@@ -784,37 +765,13 @@ void drawGenericDetailScreen()
 
 void drawDetailScreen()
 {
-    if (isEnvironmentSelected())
+    if (navigationService.isEnvironmentSelected())
     {
         drawEnvironmentScreen();
         return;
     }
 
     drawGenericDetailScreen();
-}
-
-void changeEnvironmentPage(
-    KSJ::InputEvent event
-)
-{
-    if (
-        event != KSJ::InputEvent::RotateLeft &&
-        event != KSJ::InputEvent::RotateRight
-    )
-    {
-        return;
-    }
-
-    environmentPage =
-        environmentPage ==
-            EnvironmentPage::Climate
-        ? EnvironmentPage::Light
-        : EnvironmentPage::Climate;
-
-    drawEnvironmentScreen();
-
-    serialPageRefreshRequested =
-        true;
 }
 
 void updateEnvironmentSensors(
@@ -970,97 +927,82 @@ void loop() {
 
     updateSerialInterface(nowMs);
 
-    if (currentScreen == AppScreen::Detail && isEnvironmentSelected() && environmentChanged) {
+    if (navigationService.isDetailScreen() && navigationService.isEnvironmentSelected() && environmentChanged) {
         drawEnvironmentScreen();
         environmentChanged = false;
     }
 
-    const KSJ::InputEvent event = encoder.update();
+    const KSJ::InputEvent event =
+        encoder.update();
 
-    if (event == KSJ::InputEvent::None) { return; }
+    if (event == KSJ::InputEvent::None)
+    {
+        return;
+    }
 
-    switch (currentScreen) {
-        case AppScreen::Menu: {
-            menu.update(event);
+    navigationService.update(
+        event
+    );
 
-            switch (event) {
-                case KSJ::InputEvent::RotateLeft:
-                case KSJ::InputEvent::RotateRight: {
-                    Serial.print("Menu: ");
-                    Serial.println(menu.selectedItem());
-                    
-                    menu.draw(display);
-                    break;
-                }
+    if (
+        navigationService.consumeMenuChanged()
+    )
+    {
+        Serial.print("Menu: ");
+        Serial.println(
+            navigationService.selectedItem()
+        );
 
-                case KSJ::InputEvent::ButtonDown:
-                {
-                    if (
-                        menu.consumeSelection()
-                    )
-                    {
-                        currentScreen =
-                            AppScreen::Detail;
+        menu.draw(display);
+    }
 
-                        if (
-                            isEnvironmentSelected()
-                        )
-                        {
-                            environmentPage =
-                                EnvironmentPage::Climate;
+    if (
+        navigationService.consumeDetailOpened()
+    )
+    {
+        Serial.print("Opened: ");
+        Serial.println(
+            navigationService.selectedItem()
+        );
 
-                            serialPageRefreshRequested =
-                                true;
-                        }
+        drawDetailScreen();
 
-                        Serial.print(
-                            "Opened: "
-                        );
+        environmentChanged = false;
 
-                        Serial.println(
-                            menu.selectedItem()
-                        );
-
-                        drawDetailScreen();
-
-                        environmentChanged =
-                            false;
-                    }
-
-                    break;
-                }
-
-                case KSJ::InputEvent::ButtonUp:
-                case KSJ::InputEvent::None:
-                default:
-                    break;
-            }
-
-            break;
-        }
-
-        case AppScreen::Detail: {
-            if (isEnvironmentSelected() && (
-                    event == KSJ::InputEvent::RotateLeft ||
-                    event == KSJ::InputEvent::RotateRight
-                )
-            ) {
-                changeEnvironmentPage(event);
-                break;
-            }
-
-            if ( event == KSJ::InputEvent::ButtonDown) {
-                currentScreen = AppScreen::Menu;
-
-                serialPageRefreshRequested = false;
-
-                Serial.println("Returned to menu");
-                menu.draw(display);
-
-                environmentChanged = false;
-            }
-
-            break;
+        if (
+            navigationService
+                .isEnvironmentSelected()
+        )
+        {
+            serialPageRefreshRequested =
+                true;
         }
     }
+
+    if (
+        navigationService.consumePageChanged()
+    )
+    {
+        drawEnvironmentScreen();
+
+        serialPageRefreshRequested =
+            true;
+    }
+
+    if (
+        navigationService.consumeReturnedToMenu()
+    )
+    {
+        serialPageRefreshRequested =
+            false;
+
+        Serial.println(
+            "Returned to menu"
+        );
+
+        menu.draw(display);
+
+        environmentChanged = false;
+    }
+
 }
