@@ -8,7 +8,6 @@
 #include <InputEvent.h>
 #include <KSJ_RotaryEncoder.h>
 
-#include <LightReading.h>
 #include "EnvironmentService.h"
 
 #include <ControlAction.h>
@@ -24,6 +23,7 @@
 
 #include "Menu.h"
 #include "NavigationService.h"
+#include "UIService.h"
 #include "PrototypeBoxConfig.h"
 
 
@@ -56,11 +56,12 @@ namespace AddressableConfig
         24;
 }
 
-namespace SerialUI
+namespace UIRefreshConfig
 {
-    constexpr uint32_t LIVE_REFRESH_INTERVAL_MS =
+    constexpr uint32_t SERIAL_INTERVAL_MS =
         2000;
 }
+
 
 KSJ::SSD1306Display display(
     DisplayConfig::WIDTH,
@@ -101,6 +102,15 @@ PrototypeBox::Menu menu;
 
 NavigationService navigationService(
     menu
+);
+
+UIService uiService(
+    display,
+    menu,
+    navigationService,
+    environmentService,
+    controlService,
+    statusService
 );
 
 bool environmentChanged = false;
@@ -174,46 +184,6 @@ StorageService storageService(
     storage
 );
 
-const char* humidityControlText()
-{
-    return controlService.statusText();
-}
-
-const char* lightConditionText(
-    const KSJ::LightReading& reading
-)
-{
-    if (!reading.lightPercentValid)
-    {
-        return "Unavailable";
-    }
-
-    const float percent =
-        reading.lightPercent;
-
-    if (percent < 5.0F)
-    {
-        return "Dark";
-    }
-
-    if (percent < 20.0F)
-    {
-        return "Dim";
-    }
-
-    if (percent < 45.0F)
-    {
-        return "Shady";
-    }
-
-    if (percent < 75.0F)
-    {
-        return "Bright";
-    }
-
-    return "Very bright";
-}
-
 void updateHumidityControl()
 {
     const KSJ::ControlAction action =
@@ -224,7 +194,6 @@ void updateHumidityControl()
     if (!controlService.isValid())
     {
         statusService.setFault();
-
         return;
     }
 
@@ -242,536 +211,6 @@ void updateHumidityControl()
         default:
             break;
     }
-}
-
-void printClimatePageToSerial()
-{
-    const KSJ::EnvironmentReading& ahtReading =
-        environmentService.climate();
-
-    const KSJ::EnvironmentReading& bmpReading =
-        environmentService.pressure();
-
-    Serial.println();
-
-    Serial.println(
-        "Environment > Climate"
-    );
-
-    Serial.println(
-        "------------------------"
-    );
-
-    Serial.print("Temperature: ");
-
-    if (ahtReading.temperatureValid)
-    {
-        Serial.print(
-            ahtReading.temperatureC,
-            1
-        );
-
-        Serial.println(" C");
-    }
-    else
-    {
-        Serial.println("INVALID");
-    }
-
-    Serial.print("Humidity:    ");
-
-    if (ahtReading.humidityValid)
-    {
-        Serial.print(
-            ahtReading.humidityPercent,
-            1
-        );
-
-        Serial.println(" %");
-    }
-    else
-    {
-        Serial.println("INVALID");
-    }
-
-    Serial.print("Pressure:    ");
-
-    if (bmpReading.pressureValid)
-    {
-        Serial.print(
-            bmpReading.pressureHpa,
-            1
-        );
-
-        Serial.println(" hPa");
-    }
-    else
-    {
-        Serial.println("INVALID");
-    }
-
-    Serial.print("Control:     ");
-
-    Serial.println(
-        humidityControlText()
-    );
-
-    Serial.print("Status LED:  ");
-
-    Serial.println(
-        statusService.statusText()
-    );
-
-    Serial.println(
-        "Rotate = Page | Press = Menu"
-    );
-
-    Serial.println(
-        "------------------------"
-    );
-}
-
-void printLightPageToSerial()
-{
-    const KSJ::LightReading& reading =
-        environmentService.light();
-
-    Serial.println();
-
-    Serial.println(
-        "Environment > Light"
-    );
-
-    Serial.println(
-        "------------------------"
-    );
-
-    Serial.print("Raw ADC:     ");
-
-    if (reading.rawValid)
-    {
-        Serial.println(
-            reading.rawValue
-        );
-    }
-    else
-    {
-        Serial.println("INVALID");
-    }
-
-    Serial.print("Light:       ");
-
-    if (reading.lightPercentValid)
-    {
-        Serial.print(
-            reading.lightPercent,
-            1
-        );
-
-        Serial.println(" %");
-    }
-    else
-    {
-        Serial.println("INVALID");
-    }
-
-    Serial.print("Condition:   ");
-
-    Serial.println(
-        lightConditionText(reading)
-    );
-
-    Serial.print("Measured at: ");
-
-    Serial.print(
-        reading.measuredAtMs
-    );
-
-    Serial.println(" ms");
-
-    Serial.println(
-        "Rotate = Page | Press = Menu"
-    );
-
-    Serial.println(
-        "------------------------"
-    );
-}
-
-void printActiveEnvironmentPageToSerial()
-{
-    if (
-        !navigationService.isDetailScreen() ||
-        !navigationService.isEnvironmentSelected()
-    )
-    {
-        return;
-    }
-
-    switch (navigationService.environmentPage())
-    {
-        case NavigationPage::Climate:
-            printClimatePageToSerial();
-            break;
-
-        case NavigationPage::Light:
-            printLightPageToSerial();
-            break;
-    }
-}
-
-void updateSerialInterface(
-    uint32_t nowMs
-)
-{
-    if (
-        !navigationService.isDetailScreen() ||
-        !navigationService.isEnvironmentSelected()
-    )
-    {
-        serialPageRefreshRequested =
-            false;
-
-        return;
-    }
-
-    const bool intervalElapsed =
-        nowMs -
-            previousSerialPageMs >=
-        SerialUI::LIVE_REFRESH_INTERVAL_MS;
-
-    if (
-        !serialPageRefreshRequested &&
-        !intervalElapsed
-    )
-    {
-        return;
-    }
-
-    previousSerialPageMs =
-        nowMs;
-
-    serialPageRefreshRequested =
-        false;
-
-    printActiveEnvironmentPageToSerial();
-}
-
-void drawClimatePage()
-{
-    const KSJ::EnvironmentReading& ahtReading =
-        environmentService.climate();
-
-    const KSJ::EnvironmentReading& bmpReading =
-        environmentService.pressure();
-
-    display.clear();
-    display.setTextSize(1);
-
-    display.print(
-        0,
-        0,
-        "Environment 1/2 >"
-    );
-
-    display.drawLine(
-        0,
-        10,
-        127,
-        10
-    );
-
-    if (ahtReading.temperatureValid)
-    {
-        const String value =
-            String(
-                ahtReading.temperatureC,
-                1
-            );
-
-        display.print(
-            0,
-            15,
-            "Temp"
-        );
-
-        display.print(
-            42,
-            15,
-            value.c_str()
-        );
-
-        display.print(
-            78,
-            15,
-            "C"
-        );
-    }
-    else
-    {
-        display.print(
-            0,
-            15,
-            "Temp      --"
-        );
-    }
-
-    if (ahtReading.humidityValid)
-    {
-        const String value =
-            String(
-                ahtReading.humidityPercent,
-                1
-            );
-
-        display.print(
-            0,
-            27,
-            "Humidity"
-        );
-
-        display.print(
-            54,
-            27,
-            value.c_str()
-        );
-
-        display.print(
-            90,
-            27,
-            "%"
-        );
-    }
-    else
-    {
-        display.print(
-            0,
-            27,
-            "Humidity  --"
-        );
-    }
-
-    if (bmpReading.pressureValid)
-    {
-        const String value =
-            String(
-                bmpReading.pressureHpa,
-                0
-            );
-
-        display.print(
-            0,
-            39,
-            "Pressure"
-        );
-
-        display.print(
-            54,
-            39,
-            value.c_str()
-        );
-
-        display.print(
-            84,
-            39,
-            "hPa"
-        );
-    }
-    else
-    {
-        display.print(
-            0,
-            39,
-            "Pressure  --"
-        );
-    }
-
-    display.print(
-        0,
-        51,
-        "Control"
-    );
-
-    display.print(
-        48,
-        51,
-        humidityControlText()
-    );
-
-    display.print(
-        78,
-        51,
-        "Btn=Menu"
-    );
-
-    display.update();
-}
-
-void drawLightPage()
-{
-    const KSJ::LightReading& reading =
-        environmentService.light();
-
-    display.clear();
-    display.setTextSize(1);
-
-    display.print(
-        0,
-        0,
-        "< Environment 2/2"
-    );
-
-    display.drawLine(
-        0,
-        10,
-        127,
-        10
-    );
-
-    display.print(
-        0,
-        16,
-        "Light:"
-    );
-
-    if (reading.lightPercentValid)
-    {
-        const String value =
-            String(
-                reading.lightPercent,
-                1
-            );
-
-        display.print(
-            42,
-            16,
-            value.c_str()
-        );
-
-        display.print(
-            78,
-            16,
-            "%"
-        );
-    }
-    else
-    {
-        display.print(
-            42,
-            16,
-            "--"
-        );
-    }
-
-    display.print(
-        0,
-        30,
-        "Mood:"
-    );
-
-    display.print(
-        36,
-        30,
-        lightConditionText(reading)
-    );
-
-    display.print(
-        0,
-        44,
-        "Raw:"
-    );
-
-    if (reading.rawValid)
-    {
-        const String value =
-            String(
-                reading.rawValue
-            );
-
-        display.print(
-            30,
-            44,
-            value.c_str()
-        );
-    }
-    else
-    {
-        display.print(
-            30,
-            44,
-            "--"
-        );
-    }
-
-    display.print(
-        0,
-        56,
-        "Rotate | Btn=Menu"
-    );
-
-    display.update();
-}
-
-void drawEnvironmentScreen()
-{
-    switch (navigationService.environmentPage())
-    {
-        case NavigationPage::Climate:
-            drawClimatePage();
-            break;
-
-        case NavigationPage::Light:
-            drawLightPage();
-            break;
-    }
-}
-
-void drawGenericDetailScreen()
-{
-    display.clear();
-    display.setTextSize(1);
-
-    display.print(
-        0,
-        0,
-        "Selected:"
-    );
-
-    display.drawLine(
-        0,
-        10,
-        127,
-        10
-    );
-
-    display.setTextSize(2);
-
-    display.print(
-        0,
-        20,
-        navigationService.selectedItem()
-    );
-
-    display.setTextSize(1);
-
-    display.print(
-        0,
-        52,
-        "Press to return"
-    );
-
-    display.update();
-}
-
-void drawDetailScreen()
-{
-    if (navigationService.isEnvironmentSelected())
-    {
-        drawEnvironmentScreen();
-        return;
-    }
-
-    drawGenericDetailScreen();
 }
 
 void updateEnvironmentSensors(
@@ -871,7 +310,7 @@ void setup() {
         statusService.setReady();
     }
 
-    menu.draw(display);
+    uiService.renderMenu();
 
     Serial.println("Display: ready");
 
@@ -925,10 +364,38 @@ void loop() {
     storageReady =
         storageService.isReady();
 
-    updateSerialInterface(nowMs);
+    if (
+        navigationService.isDetailScreen() &&
+        navigationService.isEnvironmentSelected()
+    )
+    {
+        const bool serialIntervalElapsed =
+            nowMs -
+                previousSerialPageMs >=
+            UIRefreshConfig::SERIAL_INTERVAL_MS;
+
+        if (
+            serialPageRefreshRequested ||
+            serialIntervalElapsed
+        )
+        {
+            previousSerialPageMs =
+                nowMs;
+
+            serialPageRefreshRequested =
+                false;
+
+            uiService.printCurrentEnvironmentPage();
+        }
+    }
+    else
+    {
+        serialPageRefreshRequested =
+            false;
+    }
 
     if (navigationService.isDetailScreen() && navigationService.isEnvironmentSelected() && environmentChanged) {
-        drawEnvironmentScreen();
+        uiService.renderEnvironment();
         environmentChanged = false;
     }
 
@@ -953,7 +420,7 @@ void loop() {
             navigationService.selectedItem()
         );
 
-        menu.draw(display);
+        uiService.renderMenu();
     }
 
     if (
@@ -965,7 +432,7 @@ void loop() {
             navigationService.selectedItem()
         );
 
-        drawDetailScreen();
+        uiService.renderDetail();
 
         environmentChanged = false;
 
@@ -983,7 +450,7 @@ void loop() {
         navigationService.consumePageChanged()
     )
     {
-        drawEnvironmentScreen();
+        uiService.renderEnvironment();
 
         serialPageRefreshRequested =
             true;
@@ -1000,7 +467,7 @@ void loop() {
             "Returned to menu"
         );
 
-        menu.draw(display);
+        uiService.renderMenu();
 
         environmentChanged = false;
     }
