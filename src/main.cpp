@@ -12,11 +12,8 @@
 #include "EnvironmentService.h"
 
 #include <ControlAction.h>
-#include <ControlDecision.h>
-#include <KSJ_RangeController.h>
-#include <RangeControllerConfig.h>
+#include "ControlService.h"
 
-#include <KSJ_DigitalOutput.h>
 #include <KSJ_AddressableStrip.h>
 #include <LedColor.h>
 
@@ -100,17 +97,7 @@ EnvironmentService environmentService(
     Wire
 );
 
-const KSJ::RangeControllerConfig humidityConfig
-{
-    SensorConfig::HUMIDITY_ON_BELOW_PERCENT,
-    SensorConfig::HUMIDITY_OFF_ABOVE_PERCENT
-};
-
-KSJ::RangeController humidityController(
-    humidityConfig
-);
-
-KSJ::DigitalOutput humidifierOutput(
+ControlService controlService(
     OutputPins::ONBOARD_LED,
     true
 );
@@ -137,9 +124,6 @@ EnvironmentPage environmentPage = EnvironmentPage::Climate;
 SystemLightState systemLightState = SystemLightState::Booting;
 
 bool environmentChanged = false;
-
-bool humidityDecisionValid = false;
-bool humidifierRequestedOn = false;
 
 bool storageReady = false;
 bool addressableStripReady = false;
@@ -324,14 +308,7 @@ bool initializeAddressableStrip()
 
 const char* humidityControlText()
 {
-    if (!humidityDecisionValid)
-    {
-        return "ERROR";
-    }
-
-    return humidifierRequestedOn
-        ? "ON"
-        : "OFF";
+    return controlService.statusText();
 }
 
 const char* lightConditionText(
@@ -369,109 +346,40 @@ const char* lightConditionText(
     return "Very bright";
 }
 
-void applyHumidityDecision(
-    const KSJ::ControlDecision& decision
-)
+void updateHumidityControl()
 {
-    humidityDecisionValid =
-        decision.inputValid;
+    const KSJ::ControlAction action =
+        controlService.update(
+            environmentService.climate()
+        );
 
-    if (!decision.inputValid)
+    if (!controlService.isValid())
     {
         setSystemLightState(
             SystemLightState::Fault
         );
 
-        Serial.println(
-            "Humidity control: INVALID"
-        );
-
         return;
     }
 
-    switch (decision.action)
+    switch (action)
     {
         case KSJ::ControlAction::TurnOn:
-        {
-            humidifierRequestedOn = true;
-
-            humidifierOutput.on();
-
             setSystemLightState(
                 SystemLightState::Humidifying
             );
-
-            Serial.print(
-                "Humidity control: TURN ON at "
-            );
-
-            Serial.print(
-                decision.measuredValue,
-                1
-            );
-
-            Serial.println("%");
-
-            Serial.println(
-                "Onboard LED: ON"
-            );
-
             break;
-        }
 
         case KSJ::ControlAction::TurnOff:
-        {
-            humidifierRequestedOn = false;
-
-            humidifierOutput.off();
-
             setSystemLightState(
                 SystemLightState::Ready
             );
-
-            Serial.print(
-                "Humidity control: TURN OFF at "
-            );
-
-            Serial.print(
-                decision.measuredValue,
-                1
-            );
-
-            Serial.println("%");
-
-            Serial.println(
-                "Onboard LED: OFF"
-            );
-
             break;
-        }
 
         case KSJ::ControlAction::Hold:
         default:
             break;
     }
-}
-
-void updateHumidityControl()
-{
-    const KSJ::EnvironmentReading& reading =
-        environmentService.climate();
-
-    const float humidity =
-        reading.humidityValid
-            ? reading.humidityPercent
-            : NAN;
-
-    const KSJ::ControlDecision decision =
-        humidityController.update(
-            humidity,
-            reading.measuredAtMs
-        );
-
-    applyHumidityDecision(
-        decision
-    );
 }
 
 void printClimatePageToSerial()
@@ -1087,7 +995,8 @@ void setup() {
 
     encoder.begin();
 
-    humidifierOutput.begin();
+    const bool controlReady =
+        controlService.begin();
 
     const bool environmentReady =
         environmentService.begin();
@@ -1135,9 +1044,19 @@ void setup() {
 
     Serial.println("Light: ready");
 
-    Serial.println("Control: ready");
+    Serial.print("Control: ");
+    Serial.println(
+        controlReady
+            ? "ready"
+            : "unavailable"
+    );
 
-    Serial.println("Output: ready");
+    Serial.print("Output: ");
+    Serial.println(
+        controlReady
+            ? "ready"
+            : "unavailable"
+    );
 
     Serial.print("Addressable strip: ");
     Serial.println(addressableStripReady ? "ready" : "unavailable");
