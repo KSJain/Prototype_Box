@@ -8,11 +8,8 @@
 #include <InputEvent.h>
 #include <KSJ_RotaryEncoder.h>
 
-#include <KSJ_AHT20Sensor.h>
-#include <KSJ_BMP280Sensor.h>
-#include <KSJ_AnalogLightSensor.h>
-#include <AnalogLightConfig.h>
 #include <LightReading.h>
+#include "EnvironmentService.h"
 
 #include <ControlAction.h>
 #include <ControlDecision.h>
@@ -99,26 +96,8 @@ KSJ::RotaryEncoder encoder(
     Pins::ROTARY_SW
 );
 
-KSJ::AHT20Sensor aht20(
-    Wire,
-    SensorConfig::AHT20_INTERVAL_MS
-);
-
-KSJ::BMP280Sensor bmp280(
-    SensorConfig::BMP280_INTERVAL_MS
-);
-
-const KSJ::AnalogLightConfig lightConfig
-{
-    SensorConfig::LDR_DARK_RAW,
-    SensorConfig::LDR_BRIGHT_RAW,
-    SensorConfig::LDR_HIGHER_RAW_IS_BRIGHTER,
-    SensorConfig::LDR_INTERVAL_MS
-};
-
-KSJ::AnalogLightSensor lightSensor(
-    Pins::LDR,
-    lightConfig
+EnvironmentService environmentService(
+    Wire
 );
 
 const KSJ::RangeControllerConfig humidityConfig
@@ -476,13 +455,8 @@ void applyHumidityDecision(
 
 void updateHumidityControl()
 {
-    if (!aht20.hasNewReading())
-    {
-        return;
-    }
-
     const KSJ::EnvironmentReading& reading =
-        aht20.reading();
+        environmentService.climate();
 
     const float humidity =
         reading.humidityValid
@@ -503,10 +477,10 @@ void updateHumidityControl()
 void printClimatePageToSerial()
 {
     const KSJ::EnvironmentReading& ahtReading =
-        aht20.reading();
+        environmentService.climate();
 
     const KSJ::EnvironmentReading& bmpReading =
-        bmp280.reading();
+        environmentService.pressure();
 
     Serial.println();
 
@@ -592,7 +566,7 @@ void printClimatePageToSerial()
 void printLightPageToSerial()
 {
     const KSJ::LightReading& reading =
-        lightSensor.reading();
+        environmentService.light();
 
     Serial.println();
 
@@ -718,10 +692,10 @@ void updateSerialInterface(
 void drawClimatePage()
 {
     const KSJ::EnvironmentReading& ahtReading =
-        aht20.reading();
+        environmentService.climate();
 
     const KSJ::EnvironmentReading& bmpReading =
-        bmp280.reading();
+        environmentService.pressure();
 
     display.clear();
     display.setTextSize(1);
@@ -868,7 +842,7 @@ void drawClimatePage()
 void drawLightPage()
 {
     const KSJ::LightReading& reading =
-        lightSensor.reading();
+        environmentService.light();
 
     display.clear();
     display.setTextSize(1);
@@ -1060,28 +1034,30 @@ void updateEnvironmentSensors(
     uint32_t nowMs
 )
 {
-    aht20.update(nowMs);
-    bmp280.update(nowMs);
-    lightSensor.update(nowMs);
+    environmentService.update(
+        nowMs
+    );
 
-    updateHumidityControl();
-
-    if (aht20.hasNewReading())
+    if (
+        environmentService.consumeClimateChanged()
+    )
     {
+        updateHumidityControl();
         environmentChanged = true;
-        aht20.clearNewReadingFlag();
     }
 
-    if (bmp280.hasNewReading())
+    if (
+        environmentService.consumePressureChanged()
+    )
     {
         environmentChanged = true;
-        bmp280.clearNewReadingFlag();
     }
 
-    if (lightSensor.hasNewReading())
+    if (
+        environmentService.consumeLightChanged()
+    )
     {
         environmentChanged = true;
-        lightSensor.clearNewReadingFlag();
     }
 }
 
@@ -1113,23 +1089,8 @@ void setup() {
 
     humidifierOutput.begin();
 
-    const bool aht20Ready = aht20.begin();
-    const bool bmp280Ready = bmp280.begin();
-    const bool lightReady = lightSensor.begin();
-
-    Serial.print("AHT20: ");
-    Serial.println(aht20Ready ? "READY" : "NOT FOUND");
-
-    Serial.print("BMP280: ");
-    Serial.println(bmp280Ready? "READY": "NOT FOUND");
-
-    if (bmp280Ready){
-        Serial.print("BMP280 address: 0x");
-        Serial.println(bmp280.detectedAddress(),HEX);
-    }
-
-    Serial.print("LDR: ");
-    Serial.println(lightReady ? "READY" : "INVALID CONFIG");
+    const bool environmentReady =
+        environmentService.begin();
 
     storageReady =
     storageService.begin(
@@ -1156,7 +1117,7 @@ void setup() {
     );
     Serial.println("%");
 
-    const bool requiredSystemsReady = aht20Ready && bmp280Ready && lightReady;
+    const bool requiredSystemsReady = environmentReady;
 
     if (!requiredSystemsReady) {
         setSystemLightState(SystemLightState::Fault);
@@ -1198,7 +1159,7 @@ void loop() {
 
     storageService.update(
         nowMs,
-        lightSensor.reading()
+        environmentService.light()
     );
 
     storageReady =
