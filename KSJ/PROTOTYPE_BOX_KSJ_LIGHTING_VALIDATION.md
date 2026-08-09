@@ -1,8 +1,8 @@
 # Prototype Box — KSJ_Lighting Integration Validation
 
-**Integration:** KSJ_Lighting v0.1.1  
-**Hardware:** Prototype Box v1 / ESP32 DOIT DevKit V1  
-**Date:** 2026-08-09  
+**Integration:** KSJ_Lighting v0.1.1
+**Hardware:** Prototype Box v1 / ESP32 DOIT DevKit V1
+**Date:** 2026-08-09
 **Status:** Integration hardware pass successful; remaining regression checks tracked below
 
 > **Objective**

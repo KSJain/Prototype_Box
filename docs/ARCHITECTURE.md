@@ -1,7 +1,7 @@
 # KSJ Architecture Philosophy
 
-> **Prototype Box discovers bricks.**  
-> **KSJ Libraries preserve them.**  
+> **Prototype Box discovers bricks.**
+> **KSJ Libraries preserve them.**
 > **RAMU Nodes put them to work.**
 
 Everything in this ecosystem exists to answer one question:
@@ -257,8 +257,8 @@ Each service should explain **how** one responsibility is fulfilled.
 
 # Design Principles
 
-> **Prototype Box discovers bricks.  
-> KSJ Libraries preserve them.  
+> **Prototype Box discovers bricks.
+> KSJ Libraries preserve them.
 > RAMU Nodes put them to work.**
 
 > **Capabilities may fail independently. Identity should not.**
