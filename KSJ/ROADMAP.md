@@ -14,13 +14,21 @@
 
 ✔ KSJ_Output
 
-✔ Prototype Box v0.3.0
+✔ KSJ_Storage
+
+✔ KSJ_Lighting v0.1.1 integrated into Prototype Box
+
+✔ Prototype Box v0.7.0 known release baseline
+
+◐ Prototype Box next-release integration validation
 
 ---
 
 ## Next
 
-□ KSJ_Storage
+□ Complete remaining KSJ_Lighting regression checks
+
+□ Tag the next Prototype Box release after full regression validation
 
 □ KSJ_Comms
 

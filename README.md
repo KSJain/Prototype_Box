@@ -35,7 +35,7 @@ KSJ/
 
 ## Prototype Box Firmware
 
-**Current Release:** **v0.5.1**
+**Current Release:** **v0.7.0**
 
 ## Libraries
 
@@ -47,7 +47,8 @@ KSJ/
 | KSJ_Environment | v0.2.1  |
 | KSJ_Control     | v0.1.0  |
 | KSJ_Output      | v0.3.0  |
-| KSJ_Storage     | v0.1.0  |
+| KSJ_Lighting    | v0.1.1  |
+| KSJ_Storage     | v0.2.0  |
 
 ---
 
@@ -63,6 +64,7 @@ KSJ/
 - Analog LDR
 - Micro SD Card Module
 - Onboard Status LED
+- 8-pixel WS2812-compatible status strip on GPIO 13
 
 ## Planned Hardware
 
@@ -90,6 +92,7 @@ KSJ/
 - Human-readable light interpretation
 - Humidity-control recommendations
 - Autonomous onboard LED output
+- Non-blocking addressable status lighting through KSJ_Lighting
 - Context-aware Serial interface
 - SD-card persistence
 - Persistent boot history
@@ -150,6 +153,31 @@ Each library has one responsibility.
 Products compose libraries.
 
 Libraries never become products.
+
+---
+
+
+## Lighting Integration Validation
+
+On 2026-08-09, `KSJ_Lighting v0.1.1` was integrated into the physical Prototype Box through `StatusService`.
+
+Observed during the hardware pass:
+
+- Ready state breathed green continuously.
+- The status strip transitioned into the blue/cyan active-control state as humidity/moisture conditions changed.
+- Rotary input and menu navigation remained responsive while animation continued.
+- Existing humidity/moisture behavior remained functional.
+- Existing ambient-light response remained functional.
+
+The integration therefore demonstrates that `KSJ_Lighting::tick()` can coexist with the existing Prototype Box event loop without taking ownership of sensing, control, input, UI, or storage.
+
+The detailed validation record is in:
+
+```text
+KSJ/PROTOTYPE_BOX_KSJ_LIGHTING_VALIDATION.md
+```
+
+Remaining regression checks are intentionally tracked there before this work is promoted to a tagged Prototype Box release.
 
 ---
 
@@ -238,13 +266,13 @@ pio device monitor
 | Rotary Encoder | DT     |   26 |
 | Rotary Encoder | Switch |   25 |
 | Analog LDR     | ADC    |   34 |
+| Addressable Strip | Data |   13 |
 | SD Card        | CS     |    5 |
 | SD Card        | SCK    |   18 |
 | SD Card        | MISO   |   19 |
 | SD Card        | MOSI   |   23 |
 | Onboard LED    | Output |    2 |
 
-### LDR Voltage Divider
 ## LDR Voltage Divider
 
 ```text
@@ -278,6 +306,8 @@ Calibration depends on the specific LDR, resistor, enclosure, and expected light
 - ✅ Digital output
 - ✅ SD-card persistence
 - ✅ Persistent boot history
+- ✅ KSJ_Lighting integration through StatusService
+- ✅ Non-blocking animated status lighting
 
 ## Next
 
@@ -314,6 +344,8 @@ KSJ/
 ├── ENGINEERING_STANDARD.md
 ├── LEARNING_PATH.md
 ├── ROADMAP.md
+├── PROTOTYPE_BOX_V0.7.0_STORAGE_VALIDATION.md
+├── PROTOTYPE_BOX_KSJ_LIGHTING_VALIDATION.md
 └── CONTRIBUTING.md
 ```
 

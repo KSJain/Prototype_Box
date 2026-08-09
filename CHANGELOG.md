@@ -2,6 +2,52 @@
 
 All notable changes to Prototype Box are documented here.
 
+## Unreleased — KSJ_Lighting integration
+
+### Added
+
+- Added KSJ_Lighting v0.1.1 as the addressable-light behavior layer
+- Added non-blocking StatusService lighting updates
+- Added animated ready and humidifying status presentation
+
+### Changed
+
+- StatusService now owns both KSJ_Output::AddressableStrip and KSJ_Lighting::Lighting
+- Booting remains solid yellow during setup
+- Ready is presented as a slow green breathing pattern
+- Humidifying is presented as a blue/cyan Tide pattern
+- Fault remains deliberately solid red for unambiguous indication
+- Addressable LED data is assigned to GPIO 13
+
+### Preserved
+
+- Existing StatusService public state API
+- Humidity-control behavior and thresholds
+- OLED UI and navigation
+- Environment sensing
+- SD storage and append-only logging
+- Onboard LED control
+
+### Hardware Validation — 2026-08-09
+
+Verified on the physical Prototype Box:
+
+- KSJ_Lighting v0.1.1 runs continuously through `StatusService::update()`
+- Ready state presents a green breathing pattern
+- Humidifying state presents the blue/cyan animated state
+- Rotary input remains responsive while lighting animates
+- Main-menu navigation remains responsive while lighting animates
+- Existing humidity/moisture response continues to change status behavior
+- Existing ambient-light sensing continues to respond normally
+- No direct competing owner of the delegated addressable strip was observed in application code
+
+Still to be explicitly re-validated before promoting this integration to a tagged Prototype Box release:
+
+- Fault-state indication
+- SD logging and persistent session/boot count
+- Full AHT20/BMP280 regression sweep
+- Serial-page regression sweep
+
 ## v0.6.0 — 2026-07-27
 
 ### Added

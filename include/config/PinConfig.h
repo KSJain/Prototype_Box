@@ -23,5 +23,5 @@ namespace Pins
         34;
 
     constexpr uint8_t ADDRESSABLE_LED_DATA =
-        12;
+        13;
 }

@@ -354,6 +354,8 @@ void loop() {
 
     const uint32_t nowMs = millis();
 
+    statusService.update();
+
     updateEnvironmentSensors(nowMs);
 
     storageService.update(

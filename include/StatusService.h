@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <KSJ_AddressableStrip.h>
+#include <KSJ_Lighting.h>
 #include <LedColor.h>
 
 enum class StatusState : uint8_t
@@ -22,6 +23,7 @@ public:
     );
 
     bool begin();
+    void update();
 
     void setBooting();
     void setReady();
@@ -34,10 +36,11 @@ public:
 
 private:
     void setState(StatusState state);
-    KSJ::LedColor colorForState(StatusState state) const;
+    void applyLightingForState(StatusState state);
     const char* textForState(StatusState state) const;
 
     KSJ::AddressableStrip _strip;
+    KSJ::Lighting _lighting;
     const uint8_t _brightness;
 
     StatusState _state = StatusState::Booting;
