@@ -101,6 +101,88 @@ KSJ/
 
 ---
 
+
+## Prototype Box as the RAMU Node Laboratory
+
+Prototype Box keeps its original identity and interaction style while gaining a
+second responsibility: it is the **RAMU Node Laboratory**.
+
+> **Prototype Box should gain laboratory powers without losing its original invitation to explore.**
+
+The original experience remains part of the design contract:
+
+```text
+power on
+    ↓
+addressable status light comes alive
+    ↓
+OLED wakes
+    ↓
+simple four-item menu
+    ↓
+rotary input invites discovery
+```
+
+New experiments must behave like good house guests. They may extend the box,
+but they must not erase its boot character, root navigation, discoverability,
+or existing useful behavior.
+
+The root menu therefore remains:
+
+```text
+Dashboard
+Environment
+Settings
+About
+```
+
+RAMU communication tools live under `Settings -> Node Lab` rather than taking
+over the root menu.
+
+### Node Lab roles
+
+Prototype Box is not another production node. It is the place where nodes and
+protocols can be exercised before they are trusted in the real system.
+
+```text
+INSPECTOR
+Query a real node and exercise the capabilities it advertises.
+
+STUB
+Represent a node/capability that does not physically exist yet, while marking
+all generated observations as simulated.
+
+SCENARIO
+Future preset or time-sequenced changes that drive a stub through useful test
+conditions and observe how real nodes respond.
+```
+
+A Water Node may therefore be tested while Prototype Box explicitly acts as a
+stub Garden Node. The stub must never silently masquerade as physical hardware.
+
+Example provenance:
+
+```json
+{
+  "from":"prototype-box",
+  "as":"garden-stub-01",
+  "impl":"stub",
+  "sim":true,
+  "cap":"environment.observe",
+  "rh":37.0,
+  "temp_c":25.2,
+  "light":420
+}
+```
+
+This provenance belongs in transport and persistent evidence so future tools can
+filter physical observations from simulated observations without guessing their
+ancestry.
+
+> **Prototype Box is where new RAMU nodes learn how to speak RAMU before being trusted in the real system.**
+
+It is intentionally both a school for humans and a school for code.
+
 # Architecture
 Prototype Box is the laboratory where reusable engineering capabilities are discovered and validated.
 
@@ -404,3 +486,28 @@ Its purpose is to transform ideas into dependable building blocks that can be re
 Engineering should reduce uncertainty.
 
 Engineering should feel like magic.
+
+---
+
+# Experimental Composition Work
+
+The `experiment/espnow-composition-lab` branch advances Prototype Box beyond the
+v0.7.0 release baseline without promoting the work to a tagged release.
+
+It adds `Settings -> Node Lab` while preserving the original four-item root menu,
+and uses ESP-NOW to send semantic JSON requests to the Garden Water bring-up
+endpoint. The current laboratory roles are Inspector and explicit Stub; Scenario
+is defined as a future preset/sequencer role.
+
+The first authority ladder is intentionally conservative:
+
+```text
+status → onboard LED patterns → unpowered relay clicks → later powered actions
+```
+
+See:
+
+```text
+docs/ESPNOW_COMPOSITION_LAB.md
+docs/research/WIRECLAW_COMPARISON.md
+```

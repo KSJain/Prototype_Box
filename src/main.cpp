@@ -9,6 +9,7 @@
 #include <KSJ_RotaryEncoder.h>
 
 #include "EnvironmentService.h"
+#include "CommsLabService.h"
 
 #include <ControlAction.h>
 #include "ControlService.h"
@@ -79,6 +80,8 @@ EnvironmentService environmentService(
     Wire
 );
 
+CommsLabService commsService;
+
 ControlService controlService(
     OutputPins::ONBOARD_LED,
     true
@@ -110,7 +113,8 @@ UIService uiService(
     navigationService,
     environmentService,
     controlService,
-    statusService
+    statusService,
+    commsService
 );
 
 bool environmentChanged = false;
@@ -277,6 +281,9 @@ void setup() {
     const bool environmentReady =
         environmentService.begin();
 
+    const bool commsReady =
+        commsService.begin();
+
     storageReady =
     storageService.begin(
         Board::VERSION,
@@ -344,6 +351,22 @@ void setup() {
     Serial.print("Storage: ");
     Serial.println(storageReady ? "ready" : "unavailable");
 
+    Serial.print("Comms lab: ");
+    Serial.println(
+        commsReady
+            ? "ready"
+            : "unavailable"
+    );
+
+    if (commsReady)
+    {
+        Serial.print("Comms MAC: ");
+        Serial.println(commsService.localMac());
+
+        Serial.print("Comms channel: ");
+        Serial.println(commsService.channel());
+    }
+
     Serial.print("Persistent boot count: ");
     Serial.println(bootCount);
 
@@ -355,6 +378,25 @@ void loop() {
     const uint32_t nowMs = millis();
 
     statusService.update();
+
+    commsService.update(nowMs);
+
+    if (commsService.consumeChanged())
+    {
+        const String payload =
+            commsService.stateJson();
+
+        storageService.logEvent(
+            nowMs,
+            "COMMS_STATE",
+            payload.c_str()
+        );
+
+        if (navigationService.isNodeLabScreen())
+        {
+            uiService.renderNodeLab();
+        }
+    }
 
     updateEnvironmentSensors(nowMs);
 
@@ -452,10 +494,58 @@ void loop() {
         navigationService.consumePageChanged()
     )
     {
-        uiService.renderEnvironment();
+        if (navigationService.isNodeLabScreen())
+        {
+            uiService.renderNodeLab();
+            serialPageRefreshRequested = false;
+        }
+        else
+        {
+            uiService.renderDetail();
+            serialPageRefreshRequested =
+                navigationService
+                    .isEnvironmentSelected();
+        }
+    }
 
-        serialPageRefreshRequested =
-            true;
+    if (
+        navigationService.consumeNodeLabOpened()
+    )
+    {
+        Serial.println("Opened: RAMU Node Lab");
+        uiService.renderNodeLab();
+        serialPageRefreshRequested = false;
+    }
+
+    if (
+        navigationService
+            .consumeCommsActionRequested()
+    )
+    {
+        const CommsLabAction action =
+            navigationService.commsAction();
+
+        const bool sent =
+            commsService.request(
+                action,
+                nowMs
+            );
+
+        String payload = "{\"action\":\"";
+        payload += commsLabActionName(action);
+        payload += "\",\"role\":\"";
+        payload += nodeLabRoleName(commsLabActionRole(action));
+        payload += "\",\"sent\":";
+        payload += sent ? "true" : "false";
+        payload += "}";
+
+        storageService.logEvent(
+            nowMs,
+            "COMMS_REQUEST",
+            payload.c_str()
+        );
+
+        uiService.renderNodeLab();
     }
 
     if (
