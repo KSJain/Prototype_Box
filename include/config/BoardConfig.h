@@ -6,7 +6,7 @@ namespace Board
         "Prototype Box v1";
 
     constexpr char VERSION[] =
-        "0.7.0";
+        "0.8.0-comms.1";
 
     constexpr char MCU[] =
         "ESP32 DevKit V1";

@@ -2,6 +2,29 @@
 
 All notable changes to Prototype Box are documented here.
 
+## Unreleased — ESP-NOW composition lab
+
+### Added
+
+- Added experimental `CommsLabService` using ESP-NOW channel 1
+- Added semantic JSON request/response messages
+- Added `Comms` menu/detail UI for local command selection and remote status
+- Added requester-side JSONL communication-state evidence through `KSJ_Storage`
+- Added staged status/LED/relay lab commands
+- Added RAMU/WireClaw architecture research note
+
+### Safety boundary
+
+- Prototype Box does not receive raw remote GPIO authority
+- Garden Water endpoint translates semantic requests into local behavior
+- Relay-click authority is locked by default on the endpoint
+- Powered pump/solenoid behavior is outside this experiment
+
+### Status
+
+- Source prepared for physical validation
+- Not yet promoted to a tagged Prototype Box release
+
 ## Unreleased — KSJ_Lighting integration
 
 ### Added

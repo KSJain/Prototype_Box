@@ -6,14 +6,16 @@ UIService::UIService(
     NavigationService& navigation,
     EnvironmentService& environment,
     ControlService& control,
-    StatusService& status
+    StatusService& status,
+    CommsLabService& comms
 )
     : _display(display),
       _menu(menu),
       _navigation(navigation),
       _environment(environment),
       _control(control),
-      _status(status)
+      _status(status),
+      _comms(comms)
 {
 }
 
@@ -29,6 +31,12 @@ void UIService::renderDetail()
     if (_navigation.isEnvironmentSelected())
     {
         renderEnvironment();
+        return;
+    }
+
+    if (_navigation.isSettingsSelected())
+    {
+        renderSettings();
         return;
     }
 
@@ -359,6 +367,64 @@ void UIService::renderLight()
         56,
         "Rotate | Btn=Menu"
     );
+
+    _display.update();
+}
+
+void UIService::renderSettings()
+{
+    _display.clear();
+    _display.setTextSize(1);
+
+    _display.print(0, 0, "Settings");
+    _display.drawLine(0, 10, 127, 10);
+
+    _display.print(0, 20,
+        _navigation.settingsAction() == SettingsAction::NodeLab ? ">" : " ");
+    _display.print(12, 20, "Node Lab");
+
+    _display.print(0, 36,
+        _navigation.settingsAction() == SettingsAction::Back ? ">" : " ");
+    _display.print(12, 36, "Back");
+
+    _display.print(0, 56, "Rotate | Btn=Select");
+
+    _display.update();
+}
+
+void UIService::renderNodeLab()
+{
+    _display.clear();
+    _display.setTextSize(1);
+
+    _display.print(0, 0, "RAMU Node Lab C");
+    _display.print(90, 0, String(_comms.channel()).c_str());
+    _display.drawLine(0, 10, 127, 10);
+
+    _display.print(0, 13, nodeLabRoleName(_navigation.nodeLabRole()));
+    _display.print(92, 13, _comms.peerSeen() ? "P+" : "P-");
+
+    _display.print(0, 24, ">");
+    _display.print(10, 24, commsLabActionName(_navigation.commsAction()));
+
+    _display.print(0, 35, "State");
+    _display.print(36, 35, _comms.lastState());
+
+    _display.print(0, 46, "Why");
+    _display.print(30, 46, _comms.lastReason());
+
+    if (_navigation.commsAction() == CommsLabAction::Back)
+    {
+        _display.print(0, 57, "Btn=Settings");
+    }
+    else if (_comms.awaitingResponse())
+    {
+        _display.print(0, 57, "Waiting for peer");
+    }
+    else
+    {
+        _display.print(0, 57, "Rotate | Btn=Send");
+    }
 
     _display.update();
 }

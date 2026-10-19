@@ -22,6 +22,8 @@
 
 ◐ Prototype Box next-release integration validation
 
+◐ ESP-NOW semantic composition lab — Prototype Box Node Lab ↔ Garden Water bring-up
+
 ---
 
 ## Next
@@ -30,7 +32,17 @@
 
 □ Tag the next Prototype Box release after full regression validation
 
-□ KSJ_Comms
+□ Preserve original Prototype Box root UX while graduating Node Lab beneath Settings
+
+□ Validate Inspector and explicit Stub provenance against real peer hardware
+
+□ Add explicit peer pairing / identity after broadcast bring-up
+
+□ Validate semantic request/response across a second real node relationship
+
+□ Introduce Scenario presets after Inspector/Stub behavior is stable
+
+□ Extract KSJ_Comms after repeated field evidence
 
 □ KSJ_Time
 

@@ -5,6 +5,7 @@
 #include <KSJ_SSD1306Display.h>
 #include <LightReading.h>
 
+#include "CommsLabService.h"
 #include "ControlService.h"
 #include "EnvironmentService.h"
 #include "Menu.h"
@@ -20,7 +21,8 @@ public:
         NavigationService& navigation,
         EnvironmentService& environment,
         ControlService& control,
-        StatusService& status
+        StatusService& status,
+        CommsLabService& comms
     );
 
     void renderMenu();
@@ -28,6 +30,10 @@ public:
     void renderDetail();
 
     void renderEnvironment();
+
+    void renderNodeLab();
+
+    void renderSettings();
 
     void printCurrentEnvironmentPage();
 
@@ -52,4 +58,5 @@ private:
     EnvironmentService& _environment;
     ControlService& _control;
     StatusService& _status;
+    CommsLabService& _comms;
 };

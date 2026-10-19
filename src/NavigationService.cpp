@@ -22,6 +22,10 @@ void NavigationService::update(
         case NavigationScreen::Detail:
             updateDetail(event);
             break;
+
+        case NavigationScreen::NodeLab:
+            updateNodeLab(event);
+            break;
     }
 }
 
@@ -35,6 +39,11 @@ bool NavigationService::isDetailScreen() const
     return _screen == NavigationScreen::Detail;
 }
 
+bool NavigationService::isNodeLabScreen() const
+{
+    return _screen == NavigationScreen::NodeLab;
+}
+
 bool NavigationService::isEnvironmentSelected() const
 {
     return std::strcmp(
@@ -43,9 +52,32 @@ bool NavigationService::isEnvironmentSelected() const
     ) == 0;
 }
 
+bool NavigationService::isSettingsSelected() const
+{
+    return std::strcmp(
+        _menu.selectedItem(),
+        "Settings"
+    ) == 0;
+}
+
 NavigationPage NavigationService::environmentPage() const
 {
     return _environmentPage;
+}
+
+SettingsAction NavigationService::settingsAction() const
+{
+    return _settingsAction;
+}
+
+CommsLabAction NavigationService::commsAction() const
+{
+    return _commsAction;
+}
+
+NodeLabRole NavigationService::nodeLabRole() const
+{
+    return commsLabActionRole(_commsAction);
 }
 
 const char* NavigationService::selectedItem() const
@@ -81,6 +113,20 @@ bool NavigationService::consumeReturnedToMenu()
     return value;
 }
 
+bool NavigationService::consumeNodeLabOpened()
+{
+    const bool value = _nodeLabOpened;
+    _nodeLabOpened = false;
+    return value;
+}
+
+bool NavigationService::consumeCommsActionRequested()
+{
+    const bool value = _commsActionRequested;
+    _commsActionRequested = false;
+    return value;
+}
+
 void NavigationService::updateMenu(
     KSJ::InputEvent event
 )
@@ -105,6 +151,12 @@ void NavigationService::updateMenu(
                         NavigationPage::Climate;
                 }
 
+                if (isSettingsSelected())
+                {
+                    _settingsAction =
+                        SettingsAction::NodeLab;
+                }
+
                 _detailOpened = true;
             }
 
@@ -115,6 +167,50 @@ void NavigationService::updateMenu(
         default:
             break;
     }
+}
+
+
+void NavigationService::rotateSettingsAction()
+{
+    _settingsAction =
+        _settingsAction == SettingsAction::NodeLab
+        ? SettingsAction::Back
+        : SettingsAction::NodeLab;
+}
+
+void NavigationService::rotateCommsAction(
+    bool right
+)
+{
+    const uint8_t count =
+        static_cast<uint8_t>(
+            CommsLabAction::Count
+        );
+
+    uint8_t index =
+        static_cast<uint8_t>(
+            _commsAction
+        );
+
+    if (right)
+    {
+        index =
+            static_cast<uint8_t>(
+                (index + 1U) % count
+            );
+    }
+    else
+    {
+        index =
+            index == 0
+                ? count - 1U
+                : index - 1U;
+    }
+
+    _commsAction =
+        static_cast<CommsLabAction>(
+            index
+        );
 }
 
 void NavigationService::updateDetail(
@@ -138,9 +234,73 @@ void NavigationService::updateDetail(
         return;
     }
 
+    if (isSettingsSelected())
+    {
+        if (
+            event == KSJ::InputEvent::RotateLeft ||
+            event == KSJ::InputEvent::RotateRight
+        )
+        {
+            rotateSettingsAction();
+            _pageChanged = true;
+            return;
+        }
+
+        if (event == KSJ::InputEvent::ButtonDown)
+        {
+            if (_settingsAction == SettingsAction::NodeLab)
+            {
+                _screen = NavigationScreen::NodeLab;
+                _commsAction = CommsLabAction::Status;
+                _nodeLabOpened = true;
+            }
+            else
+            {
+                _screen = NavigationScreen::Menu;
+                _returnedToMenu = true;
+            }
+
+            return;
+        }
+
+        return;
+    }
+
     if (event == KSJ::InputEvent::ButtonDown)
     {
         _screen = NavigationScreen::Menu;
         _returnedToMenu = true;
+    }
+}
+
+void NavigationService::updateNodeLab(
+    KSJ::InputEvent event
+)
+{
+    if (event == KSJ::InputEvent::RotateLeft)
+    {
+        rotateCommsAction(false);
+        _pageChanged = true;
+        return;
+    }
+
+    if (event == KSJ::InputEvent::RotateRight)
+    {
+        rotateCommsAction(true);
+        _pageChanged = true;
+        return;
+    }
+
+    if (event == KSJ::InputEvent::ButtonDown)
+    {
+        if (_commsAction == CommsLabAction::Back)
+        {
+            _screen = NavigationScreen::Detail;
+            _pageChanged = true;
+        }
+        else
+        {
+            _commsActionRequested = true;
+        }
     }
 }
