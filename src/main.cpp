@@ -8,6 +8,8 @@
 #include <InputEvent.h>
 #include <KSJ_RotaryEncoder.h>
 
+#include <KSJ_StableState.h>
+
 #include "EnvironmentService.h"
 #include "CommsLabService.h"
 
@@ -63,6 +65,18 @@ namespace UIRefreshConfig
         2000;
 }
 
+namespace StableStateLabConfig
+{
+    constexpr float LIGHT_BELOW_RAW =
+        1400.0F;
+
+    constexpr float LIGHT_ABOVE_RAW =
+        2900.0F;
+
+    constexpr uint32_t PERSISTENCE_MS =
+        1000;
+}
+
 
 KSJ::SSD1306Display display(
     DisplayConfig::WIDTH,
@@ -79,6 +93,13 @@ KSJ::RotaryEncoder encoder(
 EnvironmentService environmentService(
     Wire
 );
+
+KSJ::StableState::ThresholdStateTracker
+    lightStateTracker(
+        StableStateLabConfig::LIGHT_BELOW_RAW,
+        StableStateLabConfig::LIGHT_ABOVE_RAW,
+        StableStateLabConfig::PERSISTENCE_MS
+    );
 
 CommsLabService commsService;
 
@@ -217,6 +238,56 @@ void updateHumidityControl()
     }
 }
 
+
+void observeLightStableState(
+    uint32_t nowMs
+)
+{
+    const KSJ::LightReading& light =
+        environmentService.light();
+
+    const bool stateChanged =
+        lightStateTracker.update(
+            static_cast<float>(
+                light.rawValue
+            ),
+            light.rawValid,
+            nowMs
+        );
+
+    Serial.print("STABLE_STATE,light_raw=");
+
+    if (light.rawValid)
+    {
+        Serial.print(light.rawValue);
+    }
+    else
+    {
+        Serial.print("INVALID");
+    }
+
+    Serial.print(",state=");
+    Serial.print(
+        KSJ::StableState::thresholdStateName(
+            lightStateTracker.state()
+        )
+    );
+
+    Serial.print(",candidate=");
+    Serial.print(
+        KSJ::StableState::thresholdStateName(
+            lightStateTracker.candidateState()
+        )
+    );
+
+    Serial.print(",changed=");
+    Serial.println(
+        stateChanged
+            ? "true"
+            : "false"
+    );
+}
+
 void updateEnvironmentSensors(
     uint32_t nowMs
 )
@@ -244,6 +315,10 @@ void updateEnvironmentSensors(
         environmentService.consumeLightChanged()
     )
     {
+        observeLightStableState(
+            nowMs
+        );
+
         environmentChanged = true;
     }
 }
