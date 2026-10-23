@@ -9,6 +9,7 @@
 #include "ControlService.h"
 #include "EnvironmentService.h"
 #include "Menu.h"
+#include "PeerBindingHostService.h"
 #include "NavigationService.h"
 #include "StatusService.h"
 
@@ -22,7 +23,8 @@ public:
         EnvironmentService& environment,
         ControlService& control,
         StatusService& status,
-        CommsLabService& comms
+        CommsLabService& comms,
+        PeerBindingHostService& peers
     );
 
     void renderMenu();
@@ -32,6 +34,8 @@ public:
     void renderEnvironment();
 
     void renderNodeLab();
+
+    void renderPeer();
 
     void renderSettings();
 
@@ -59,4 +63,5 @@ private:
     ControlService& _control;
     StatusService& _status;
     CommsLabService& _comms;
+    PeerBindingHostService& _peers;
 };

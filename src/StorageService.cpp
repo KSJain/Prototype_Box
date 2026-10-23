@@ -528,6 +528,131 @@ String StorageService::buildLightPayload(
     return payload;
 }
 
+KSJ::StorageResult StorageService::savePeerBinding(
+    uint32_t uptimeMs,
+    const char* hostId,
+    const char* peerId,
+    const char* peerFingerprint,
+    const char* bindingId,
+    const char* capabilities,
+    const char* reason
+)
+{
+    if (!_ready)
+    {
+        KSJ::StorageResult result;
+        result.success = false;
+        result.status =
+            KSJ::StorageStatus::NotInitialized;
+        return result;
+    }
+
+    String payload;
+    payload.reserve(512);
+    payload += "{\"record\":\"peer_binding\",\"active\":true";
+    payload += ",\"uptime_ms\":";
+    payload += String(uptimeMs);
+    payload += ",\"host_id\":\"";
+    payload += hostId != nullptr ? hostId : "";
+    payload += "\",\"peer_id\":\"";
+    payload += peerId != nullptr ? peerId : "";
+    payload += "\",\"peer_fingerprint\":\"";
+    payload += peerFingerprint != nullptr ? peerFingerprint : "";
+    payload += "\",\"binding_id\":\"";
+    payload += bindingId != nullptr ? bindingId : "";
+    payload += "\",\"capabilities\":\"";
+    payload += capabilities != nullptr ? capabilities : "";
+    payload += "\",\"reason\":\"";
+    payload += reason != nullptr ? reason : "BOUND";
+    payload += "\"}";
+
+    _storage.remove(
+        "/RAMU_PEER_ACTIVE.json"
+    );
+
+    const KSJ::StorageResult snapshotResult =
+        _storage.writeText(
+            "/RAMU_PEER_ACTIVE.json",
+            payload.c_str()
+        );
+
+    String history = payload;
+    history += "\n";
+
+    const KSJ::StorageResult historyResult =
+        _storage.appendText(
+            "/RAMU_PEER_EVENTS.ndjson",
+            history.c_str()
+        );
+
+    logEvent(
+        uptimeMs,
+        "PEER_BOUND",
+        payload.c_str()
+    );
+
+    return snapshotResult && historyResult
+        ? snapshotResult
+        : historyResult;
+}
+
+KSJ::StorageResult StorageService::recordPeerUnbound(
+    uint32_t uptimeMs,
+    const char* hostId,
+    const char* peerId,
+    const char* peerFingerprint,
+    const char* bindingId,
+    const char* capabilities
+)
+{
+    if (!_ready)
+    {
+        KSJ::StorageResult result;
+        result.success = false;
+        result.status =
+            KSJ::StorageStatus::NotInitialized;
+        return result;
+    }
+
+    String payload;
+    payload.reserve(512);
+    payload += "{\"record\":\"peer_binding\",\"active\":false";
+    payload += ",\"uptime_ms\":";
+    payload += String(uptimeMs);
+    payload += ",\"host_id\":\"";
+    payload += hostId != nullptr ? hostId : "";
+    payload += "\",\"peer_id\":\"";
+    payload += peerId != nullptr ? peerId : "";
+    payload += "\",\"peer_fingerprint\":\"";
+    payload += peerFingerprint != nullptr ? peerFingerprint : "";
+    payload += "\",\"binding_id\":\"";
+    payload += bindingId != nullptr ? bindingId : "";
+    payload += "\",\"capabilities\":\"";
+    payload += capabilities != nullptr ? capabilities : "";
+    payload += "\",\"reason\":\"UNBOUND_LOCAL\"}";
+
+    _storage.remove(
+        "/RAMU_PEER_ACTIVE.json"
+    );
+
+    String history = payload;
+    history += "\n";
+
+    const KSJ::StorageResult result =
+        _storage.appendText(
+            "/RAMU_PEER_EVENTS.ndjson",
+            history.c_str()
+        );
+
+    logEvent(
+        uptimeMs,
+        "PEER_UNBOUND",
+        payload.c_str()
+    );
+
+    return result;
+}
+
 void StorageService::printHealth() const
 {
     Serial.println(

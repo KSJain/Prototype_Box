@@ -9,7 +9,6 @@ namespace CommsLabConfig
     constexpr char NODE_ID[] = "prototype-box";
     constexpr char TARGET_ID[] = "lab-node-01";
 
-    constexpr uint8_t ESPNOW_CHANNEL = 1;
     constexpr uint32_t RESPONSE_TIMEOUT_MS = 2000;
     constexpr uint32_t RELAY_PULSE_MS = 250;
 
@@ -20,7 +19,9 @@ namespace CommsLabConfig
 
 CommsLabService* CommsLabService::_instance = nullptr;
 
-bool CommsLabService::begin()
+bool CommsLabService::begin(
+    uint8_t offlineFallbackChannel
+)
 {
     _ready = false;
     _peerSeen = false;
@@ -29,8 +30,8 @@ bool CommsLabService::begin()
     _remoteRelayClicksEnabled = false;
     _changed = false;
 
+    // Wi-Fi STA mode is shared with NetworkService. Do not disconnect here.
     WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
 
     strlcpy(
         _localMac,
@@ -38,16 +39,24 @@ bool CommsLabService::begin()
         sizeof(_localMac)
     );
 
+    // If Wi-Fi is not associated yet, give ESP-NOW a deterministic offline
+    // channel. Once STA associates, the ESP32 radio follows the AP channel.
     if (
-        esp_wifi_set_channel(
-            CommsLabConfig::ESPNOW_CHANNEL,
-            WIFI_SECOND_CHAN_NONE
-        ) != ESP_OK
+        WiFi.status() != WL_CONNECTED &&
+        offlineFallbackChannel > 0
     )
     {
-        strlcpy(_lastState, "RADIO FAIL", sizeof(_lastState));
-        strlcpy(_lastReason, "channel", sizeof(_lastReason));
-        return false;
+        if (
+            esp_wifi_set_channel(
+                offlineFallbackChannel,
+                WIFI_SECOND_CHAN_NONE
+            ) != ESP_OK
+        )
+        {
+            strlcpy(_lastState, "RADIO FAIL", sizeof(_lastState));
+            strlcpy(_lastReason, "channel", sizeof(_lastReason));
+            return false;
+        }
     }
 
     if (esp_now_init() != ESP_OK)
@@ -63,7 +72,8 @@ bool CommsLabService::begin()
         CommsLabConfig::BROADCAST_MAC,
         sizeof(CommsLabConfig::BROADCAST_MAC)
     );
-    peer.channel = CommsLabConfig::ESPNOW_CHANNEL;
+    // 0 means use the current Wi-Fi radio channel.
+    peer.channel = 0;
     peer.encrypt = false;
 
     if (
@@ -90,7 +100,7 @@ bool CommsLabService::begin()
     Serial.println(_localMac);
 
     Serial.print("Comms Lab channel: ");
-    Serial.println(CommsLabConfig::ESPNOW_CHANNEL);
+    Serial.println(channel());
 
     return true;
 }
@@ -443,7 +453,21 @@ bool CommsLabService::remoteRelayClicksEnabled() const
 
 uint8_t CommsLabService::channel() const
 {
-    return CommsLabConfig::ESPNOW_CHANNEL;
+    uint8_t primary = 0;
+    wifi_second_chan_t secondary =
+        WIFI_SECOND_CHAN_NONE;
+
+    if (
+        esp_wifi_get_channel(
+            &primary,
+            &secondary
+        ) != ESP_OK
+    )
+    {
+        return 0;
+    }
+
+    return primary;
 }
 
 uint32_t CommsLabService::lastRequestId() const

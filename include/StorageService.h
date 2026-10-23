@@ -49,6 +49,25 @@ public:
 
     const KSJ::StorageHealth& health() const;
 
+    KSJ::StorageResult savePeerBinding(
+        uint32_t uptimeMs,
+        const char* hostId,
+        const char* peerId,
+        const char* peerFingerprint,
+        const char* bindingId,
+        const char* capabilities,
+        const char* reason = "BOUND"
+    );
+
+    KSJ::StorageResult recordPeerUnbound(
+        uint32_t uptimeMs,
+        const char* hostId,
+        const char* peerId,
+        const char* peerFingerprint,
+        const char* bindingId,
+        const char* capabilities
+    );
+
 private:
     String makeSessionId(
         uint32_t number

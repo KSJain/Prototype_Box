@@ -7,7 +7,8 @@ UIService::UIService(
     EnvironmentService& environment,
     ControlService& control,
     StatusService& status,
-    CommsLabService& comms
+    CommsLabService& comms,
+    PeerBindingHostService& peers
 )
     : _display(display),
       _menu(menu),
@@ -15,7 +16,8 @@ UIService::UIService(
       _environment(environment),
       _control(control),
       _status(status),
-      _comms(comms)
+      _comms(comms),
+      _peers(peers)
 {
 }
 
@@ -379,15 +381,159 @@ void UIService::renderSettings()
     _display.print(0, 0, "Settings");
     _display.drawLine(0, 10, 127, 10);
 
-    _display.print(0, 20,
-        _navigation.settingsAction() == SettingsAction::NodeLab ? ">" : " ");
-    _display.print(12, 20, "Node Lab");
+    const SettingsAction action =
+        _navigation.settingsAction();
 
-    _display.print(0, 36,
-        _navigation.settingsAction() == SettingsAction::Back ? ">" : " ");
-    _display.print(12, 36, "Back");
+    const char* name = "?";
 
-    _display.print(0, 56, "Rotate | Btn=Select");
+    switch (action)
+    {
+        case SettingsAction::NodeLab:
+            name = "Node Lab";
+            break;
+        case SettingsAction::Peers:
+            name = "Peers";
+            break;
+        case SettingsAction::PairPeer:
+            name = "Pair Peer";
+            break;
+        case SettingsAction::Back:
+            name = "Back";
+            break;
+        case SettingsAction::Count:
+        default:
+            break;
+    }
+
+    _display.print(0, 20, ">");
+    _display.print(12, 20, name);
+
+    if (action == SettingsAction::Peers)
+    {
+        _display.print(
+            12,
+            34,
+            _peers.hasBinding()
+                ? _peers.peerId().c_str()
+                : "No bound peers"
+        );
+    }
+    else if (action == SettingsAction::PairPeer)
+    {
+        _display.print(12, 34, "Intentional BLE window");
+    }
+    else if (action == SettingsAction::NodeLab)
+    {
+        _display.print(12, 34, "ESP-NOW experiment");
+    }
+
+    _display.print(0, 57, "Rotate | Btn=Select");
+    _display.update();
+}
+
+void UIService::renderPeer()
+{
+    _display.clear();
+    _display.setTextSize(1);
+
+    _display.print(0, 0, "Remembered Peer");
+    _display.drawLine(0, 10, 127, 10);
+
+    if (!_peers.hasBinding())
+    {
+        _display.print(0, 18, "No active binding");
+        _display.print(0, 34, "Pair Peer in Settings");
+        _display.print(0, 57, "Rotate | Back");
+        _display.update();
+        return;
+    }
+
+    _display.print(
+        0,
+        14,
+        _peers.peerId().c_str()
+    );
+
+    const PeerAction action =
+        _navigation.peerAction();
+
+    const char* actionName = "?";
+
+    switch (action)
+    {
+        case PeerAction::Overview:
+            actionName = "Overview";
+            break;
+        case PeerAction::Capabilities:
+            actionName = "Capabilities";
+            break;
+        case PeerAction::Unbind:
+            actionName = "Unbind";
+            break;
+        case PeerAction::Back:
+            actionName = "Back";
+            break;
+        case PeerAction::Count:
+        default:
+            break;
+    }
+
+    _display.print(0, 27, ">");
+    _display.print(12, 27, actionName);
+
+    if (action == PeerAction::Overview)
+    {
+        _display.print(0, 40, "Binding");
+        _display.print(
+            42,
+            40,
+            _peers.bindingId().c_str()
+        );
+    }
+    else if (action == PeerAction::Capabilities)
+    {
+        int count = 0;
+        const String& caps =
+            _peers.capabilities();
+
+        if (caps.length() > 0)
+        {
+            count = 1;
+            for (size_t i = 0; i < caps.length(); ++i)
+            {
+                if (caps[i] == ',')
+                {
+                    ++count;
+                }
+            }
+        }
+
+        String summary =
+            String(count) +
+            " advertised";
+
+        _display.print(
+            0,
+            40,
+            summary.c_str()
+        );
+    }
+    else if (action == PeerAction::Unbind)
+    {
+        _display.print(0, 40, "Revoke local authority");
+    }
+    else
+    {
+        _display.print(0, 40, "Return to Settings");
+    }
+
+    _display.print(
+        0,
+        57,
+        action == PeerAction::Back
+            ? "Btn=Back"
+            : "Rotate | Btn=Select"
+    );
 
     _display.update();
 }

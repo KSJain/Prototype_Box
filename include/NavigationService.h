@@ -2,7 +2,6 @@
 
 #include <Arduino.h>
 #include <InputEvent.h>
-
 #include "CommsLabTypes.h"
 #include "Menu.h"
 
@@ -10,7 +9,8 @@ enum class NavigationScreen : uint8_t
 {
     Menu,
     Detail,
-    NodeLab
+    NodeLab,
+    Peer
 };
 
 enum class NavigationPage : uint8_t
@@ -22,7 +22,19 @@ enum class NavigationPage : uint8_t
 enum class SettingsAction : uint8_t
 {
     NodeLab = 0,
-    Back
+    Peers,
+    PairPeer,
+    Back,
+    Count
+};
+
+enum class PeerAction : uint8_t
+{
+    Overview = 0,
+    Capabilities,
+    Unbind,
+    Back,
+    Count
 };
 
 class NavigationService
@@ -39,11 +51,13 @@ public:
     bool isMenuScreen() const;
     bool isDetailScreen() const;
     bool isNodeLabScreen() const;
+    bool isPeerScreen() const;
     bool isEnvironmentSelected() const;
     bool isSettingsSelected() const;
 
     NavigationPage environmentPage() const;
     SettingsAction settingsAction() const;
+    PeerAction peerAction() const;
     CommsLabAction commsAction() const;
     NodeLabRole nodeLabRole() const;
 
@@ -54,7 +68,10 @@ public:
     bool consumePageChanged();
     bool consumeReturnedToMenu();
     bool consumeNodeLabOpened();
+    bool consumePeerOpened();
+    bool consumePeerActionRequested();
     bool consumeCommsActionRequested();
+    bool consumePairingRequested();
 
 private:
     void updateMenu(
@@ -69,7 +86,17 @@ private:
         KSJ::InputEvent event
     );
 
-    void rotateSettingsAction();
+    void updatePeer(
+        KSJ::InputEvent event
+    );
+
+    void rotateSettingsAction(
+        bool right
+    );
+
+    void rotatePeerAction(
+        bool right
+    );
 
     void rotateCommsAction(
         bool right
@@ -86,6 +113,9 @@ private:
     SettingsAction _settingsAction =
         SettingsAction::NodeLab;
 
+    PeerAction _peerAction =
+        PeerAction::Overview;
+
     CommsLabAction _commsAction =
         CommsLabAction::Status;
 
@@ -94,5 +124,9 @@ private:
     bool _pageChanged = false;
     bool _returnedToMenu = false;
     bool _nodeLabOpened = false;
+    bool _peerOpened = false;
+    bool _peerActionRequested = false;
     bool _commsActionRequested = false;
+    bool _pairingRequested = false;
+    bool _settingsButtonDown = false;
 };
