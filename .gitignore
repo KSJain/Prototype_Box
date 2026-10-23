@@ -13,4 +13,4 @@
 # Temporary files
 *.log
 *.tmp
-*~
+*~include/config/NetworkConfig.local.h
