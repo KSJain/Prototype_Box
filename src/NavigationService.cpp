@@ -1,5 +1,4 @@
 #include "NavigationService.h"
-
 #include <cstring>
 
 NavigationService::NavigationService(
@@ -26,6 +25,10 @@ void NavigationService::update(
         case NavigationScreen::NodeLab:
             updateNodeLab(event);
             break;
+
+        case NavigationScreen::Peer:
+            updatePeer(event);
+            break;
     }
 }
 
@@ -42,6 +45,11 @@ bool NavigationService::isDetailScreen() const
 bool NavigationService::isNodeLabScreen() const
 {
     return _screen == NavigationScreen::NodeLab;
+}
+
+bool NavigationService::isPeerScreen() const
+{
+    return _screen == NavigationScreen::Peer;
 }
 
 bool NavigationService::isEnvironmentSelected() const
@@ -70,6 +78,11 @@ SettingsAction NavigationService::settingsAction() const
     return _settingsAction;
 }
 
+PeerAction NavigationService::peerAction() const
+{
+    return _peerAction;
+}
+
 CommsLabAction NavigationService::commsAction() const
 {
     return _commsAction;
@@ -77,7 +90,9 @@ CommsLabAction NavigationService::commsAction() const
 
 NodeLabRole NavigationService::nodeLabRole() const
 {
-    return commsLabActionRole(_commsAction);
+    return commsLabActionRole(
+        _commsAction
+    );
 }
 
 const char* NavigationService::selectedItem() const
@@ -87,43 +102,91 @@ const char* NavigationService::selectedItem() const
 
 bool NavigationService::consumeMenuChanged()
 {
-    const bool value = _menuChanged;
+    const bool value =
+        _menuChanged;
+
     _menuChanged = false;
+
     return value;
 }
 
 bool NavigationService::consumeDetailOpened()
 {
-    const bool value = _detailOpened;
+    const bool value =
+        _detailOpened;
+
     _detailOpened = false;
+
     return value;
 }
 
 bool NavigationService::consumePageChanged()
 {
-    const bool value = _pageChanged;
+    const bool value =
+        _pageChanged;
+
     _pageChanged = false;
+
     return value;
 }
 
 bool NavigationService::consumeReturnedToMenu()
 {
-    const bool value = _returnedToMenu;
+    const bool value =
+        _returnedToMenu;
+
     _returnedToMenu = false;
+
     return value;
 }
 
 bool NavigationService::consumeNodeLabOpened()
 {
-    const bool value = _nodeLabOpened;
+    const bool value =
+        _nodeLabOpened;
+
     _nodeLabOpened = false;
+
+    return value;
+}
+
+bool NavigationService::consumePeerOpened()
+{
+    const bool value =
+        _peerOpened;
+
+    _peerOpened = false;
+
+    return value;
+}
+
+bool NavigationService::consumePeerActionRequested()
+{
+    const bool value =
+        _peerActionRequested;
+
+    _peerActionRequested = false;
+
     return value;
 }
 
 bool NavigationService::consumeCommsActionRequested()
 {
-    const bool value = _commsActionRequested;
+    const bool value =
+        _commsActionRequested;
+
     _commsActionRequested = false;
+
+    return value;
+}
+
+bool NavigationService::consumePairingRequested()
+{
+    const bool value =
+        _pairingRequested;
+
+    _pairingRequested = false;
+
     return value;
 }
 
@@ -143,7 +206,8 @@ void NavigationService::updateMenu(
         case KSJ::InputEvent::ButtonDown:
             if (_menu.consumeSelection())
             {
-                _screen = NavigationScreen::Detail;
+                _screen =
+                    NavigationScreen::Detail;
 
                 if (isEnvironmentSelected())
                 {
@@ -159,7 +223,6 @@ void NavigationService::updateMenu(
 
                 _detailOpened = true;
             }
-
             break;
 
         case KSJ::InputEvent::ButtonUp:
@@ -169,13 +232,74 @@ void NavigationService::updateMenu(
     }
 }
 
-
-void NavigationService::rotateSettingsAction()
+void NavigationService::rotateSettingsAction(
+    bool right
+)
 {
+    const uint8_t count =
+        static_cast<uint8_t>(
+            SettingsAction::Count
+        );
+
+    uint8_t index =
+        static_cast<uint8_t>(
+            _settingsAction
+        );
+
+    if (right)
+    {
+        index =
+            static_cast<uint8_t>(
+                (index + 1U) % count
+            );
+    }
+    else
+    {
+        index =
+            index == 0
+                ? count - 1U
+                : index - 1U;
+    }
+
     _settingsAction =
-        _settingsAction == SettingsAction::NodeLab
-        ? SettingsAction::Back
-        : SettingsAction::NodeLab;
+        static_cast<SettingsAction>(
+            index
+        );
+}
+
+void NavigationService::rotatePeerAction(
+    bool right
+)
+{
+    const uint8_t count =
+        static_cast<uint8_t>(
+            PeerAction::Count
+        );
+
+    uint8_t index =
+        static_cast<uint8_t>(
+            _peerAction
+        );
+
+    if (right)
+    {
+        index =
+            static_cast<uint8_t>(
+                (index + 1U) % count
+            );
+    }
+    else
+    {
+        index =
+            index == 0
+                ? count - 1U
+                : index - 1U;
+    }
+
+    _peerAction =
+        static_cast<PeerAction>(
+            index
+        );
 }
 
 void NavigationService::rotateCommsAction(
@@ -226,38 +350,84 @@ void NavigationService::updateDetail(
     )
     {
         _environmentPage =
-            _environmentPage == NavigationPage::Climate
+            _environmentPage ==
+                NavigationPage::Climate
             ? NavigationPage::Light
             : NavigationPage::Climate;
 
         _pageChanged = true;
+
         return;
     }
 
     if (isSettingsSelected())
     {
+        if (event == KSJ::InputEvent::ButtonUp)
+        {
+            _settingsButtonDown = false;
+            return;
+        }
+
         if (
             event == KSJ::InputEvent::RotateLeft ||
             event == KSJ::InputEvent::RotateRight
         )
         {
-            rotateSettingsAction();
+            rotateSettingsAction(
+                event ==
+                    KSJ::InputEvent::RotateRight
+            );
+
             _pageChanged = true;
+
             return;
         }
 
         if (event == KSJ::InputEvent::ButtonDown)
         {
-            if (_settingsAction == SettingsAction::NodeLab)
+            if (_settingsButtonDown)
             {
-                _screen = NavigationScreen::NodeLab;
-                _commsAction = CommsLabAction::Status;
-                _nodeLabOpened = true;
+                return;
             }
-            else
+
+            _settingsButtonDown = true;
+
+            switch (_settingsAction)
             {
-                _screen = NavigationScreen::Menu;
-                _returnedToMenu = true;
+                case SettingsAction::NodeLab:
+                    _screen =
+                        NavigationScreen::NodeLab;
+
+                    _commsAction =
+                        CommsLabAction::Status;
+
+                    _nodeLabOpened = true;
+                    break;
+
+                case SettingsAction::Peers:
+                    _screen =
+                        NavigationScreen::Peer;
+
+                    _peerAction =
+                        PeerAction::Overview;
+
+                    _peerOpened = true;
+                    break;
+
+                case SettingsAction::PairPeer:
+                    _pairingRequested = true;
+                    break;
+
+                case SettingsAction::Back:
+                    _screen =
+                        NavigationScreen::Menu;
+
+                    _returnedToMenu = true;
+                    break;
+
+                case SettingsAction::Count:
+                default:
+                    break;
             }
 
             return;
@@ -268,7 +438,9 @@ void NavigationService::updateDetail(
 
     if (event == KSJ::InputEvent::ButtonDown)
     {
-        _screen = NavigationScreen::Menu;
+        _screen =
+            NavigationScreen::Menu;
+
         _returnedToMenu = true;
     }
 }
@@ -295,12 +467,49 @@ void NavigationService::updateNodeLab(
     {
         if (_commsAction == CommsLabAction::Back)
         {
-            _screen = NavigationScreen::Detail;
+            _screen =
+                NavigationScreen::Detail;
+
             _pageChanged = true;
         }
         else
         {
             _commsActionRequested = true;
+        }
+    }
+}
+
+
+void NavigationService::updatePeer(
+    KSJ::InputEvent event
+)
+{
+    if (event == KSJ::InputEvent::RotateLeft)
+    {
+        rotatePeerAction(false);
+        _pageChanged = true;
+        return;
+    }
+
+    if (event == KSJ::InputEvent::RotateRight)
+    {
+        rotatePeerAction(true);
+        _pageChanged = true;
+        return;
+    }
+
+    if (event == KSJ::InputEvent::ButtonDown)
+    {
+        if (_peerAction == PeerAction::Back)
+        {
+            _screen =
+                NavigationScreen::Detail;
+
+            _pageChanged = true;
+        }
+        else
+        {
+            _peerActionRequested = true;
         }
     }
 }

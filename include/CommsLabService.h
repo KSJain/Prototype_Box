@@ -9,7 +9,9 @@
 class CommsLabService
 {
 public:
-    bool begin();
+    bool begin(
+        uint8_t offlineFallbackChannel
+    );
 
     void update(
         uint32_t nowMs

@@ -26,6 +26,10 @@
 #include "NavigationService.h"
 #include "UIService.h"
 #include "PrototypeBoxConfig.h"
+#include "PeerBindingHostService.h"
+#include "NetworkService.h"
+#include "TimeService.h"
+#include "config/NetworkConfig.h"
 
 
 namespace OutputPins
@@ -80,6 +84,13 @@ EnvironmentService environmentService(
     Wire
 );
 
+PeerBindingHostService peerBindingHostService(
+    display
+);
+
+NetworkService networkService;
+TimeService timeService;
+
 CommsLabService commsService;
 
 ControlService controlService(
@@ -114,7 +125,8 @@ UIService uiService(
     environmentService,
     controlService,
     statusService,
-    commsService
+    commsService,
+    peerBindingHostService
 );
 
 bool environmentChanged = false;
@@ -261,6 +273,19 @@ void setup() {
     Serial.print("MCU: ");
     Serial.println(Board::MCU);
 
+    const uint32_t startupMs = millis();
+
+    const bool networkEnabled =
+        networkService.begin(
+            startupMs
+        );
+
+    const bool timeReady =
+        timeService.begin();
+
+    const bool peerBindingHostReady =
+        peerBindingHostService.begin();
+
     const bool statusReady =
         statusService.begin();
 
@@ -282,7 +307,9 @@ void setup() {
         environmentService.begin();
 
     const bool commsReady =
-        commsService.begin();
+        commsService.begin(
+            NetworkConfig::OFFLINE_ESPNOW_CHANNEL
+        );
 
     storageReady =
     storageService.begin(
@@ -292,6 +319,22 @@ void setup() {
 
     bootCount =
     storageService.sessionNumber();
+
+    if (
+        storageReady &&
+        peerBindingHostService.hasBinding()
+    )
+    {
+        storageService.savePeerBinding(
+            millis(),
+            peerBindingHostService.hostId().c_str(),
+            peerBindingHostService.peerId().c_str(),
+            peerBindingHostService.peerFingerprint().c_str(),
+            peerBindingHostService.bindingId().c_str(),
+            peerBindingHostService.capabilities().c_str(),
+            "BOOT_RESTORED"
+        );
+    }
 
     Serial.println("Humidity control:");
 
@@ -358,6 +401,27 @@ void setup() {
             : "unavailable"
     );
 
+    Serial.print("Network: ");
+    Serial.println(
+        networkEnabled
+            ? "configured / non-blocking"
+            : "local-only"
+    );
+
+    Serial.print("UTC service: ");
+    Serial.println(
+        timeReady
+            ? "ready / awaiting trust"
+            : "unavailable"
+    );
+
+    Serial.print("Peer binding host: ");
+    Serial.println(
+        peerBindingHostReady
+            ? "ready"
+            : "unavailable"
+    );
+
     if (commsReady)
     {
         Serial.print("Comms MAC: ");
@@ -376,6 +440,103 @@ void setup() {
 void loop() {
 
     const uint32_t nowMs = millis();
+
+    networkService.update(nowMs);
+
+    timeService.update(
+        nowMs,
+        networkService.connected()
+    );
+
+    if (networkService.consumeConnected())
+    {
+        String payload = "{\"ssid\":\"";
+        payload += networkService.ssid();
+        payload += "\",\"ip\":\"";
+        payload += networkService.localIp();
+        payload += "\",\"channel\":";
+        payload += String(networkService.channel());
+        payload += ",\"rssi\":";
+        payload += String(networkService.rssi());
+        payload += "}";
+
+        storageService.logEvent(
+            nowMs,
+            "NETWORK_CONNECTED",
+            payload.c_str()
+        );
+    }
+
+    if (networkService.consumeDisconnected())
+    {
+        storageService.logEvent(
+            nowMs,
+            "NETWORK_DISCONNECTED",
+            "{\"connected\":false}"
+        );
+    }
+
+    if (timeService.consumeSyncEvent())
+    {
+        String payload = "{\"utc_epoch\":";
+        payload += String(
+            static_cast<unsigned long>(
+                timeService.syncEpochUtc()
+            )
+        );
+        payload += ",\"sync_uptime_ms\":";
+        payload += String(timeService.syncUptimeMs());
+        payload += ",\"source\":\"ntp\",\"valid\":true}";
+
+        storageService.logEvent(
+            nowMs,
+            "TIME_SYNC",
+            payload.c_str()
+        );
+    }
+
+    peerBindingHostService.updateSerial();
+    peerBindingHostService.update(nowMs);
+
+    if (
+        peerBindingHostService.consumeBindingChanged()
+    )
+    {
+        if (
+            peerBindingHostService.lastBindingChangeRemoved()
+        )
+        {
+            storageService.recordPeerUnbound(
+                nowMs,
+                peerBindingHostService.hostId().c_str(),
+                peerBindingHostService.changedPeerId().c_str(),
+                peerBindingHostService.changedPeerFingerprint().c_str(),
+                peerBindingHostService.changedBindingId().c_str(),
+                peerBindingHostService.changedCapabilities().c_str()
+            );
+        }
+        else
+        {
+            storageService.savePeerBinding(
+                nowMs,
+                peerBindingHostService.hostId().c_str(),
+                peerBindingHostService.changedPeerId().c_str(),
+                peerBindingHostService.changedPeerFingerprint().c_str(),
+                peerBindingHostService.changedBindingId().c_str(),
+                peerBindingHostService.changedCapabilities().c_str(),
+                "PAIR_CONFIRMED"
+            );
+        }
+    }
+
+    if (
+        peerBindingHostService.consumeDisplayReleased() &&
+        navigationService.isDetailScreen() &&
+        navigationService.isSettingsSelected()
+    )
+    {
+        uiService.renderSettings();
+    }
 
     statusService.update();
 
@@ -446,6 +607,19 @@ void loop() {
     const KSJ::InputEvent event =
         encoder.update();
 
+    if (peerBindingHostService.ownsDisplay())
+    {
+        if (event != KSJ::InputEvent::None)
+        {
+            peerBindingHostService.handleInput(
+                event,
+                nowMs
+            );
+        }
+
+        return;
+    }
+
     if (event == KSJ::InputEvent::None)
     {
         return;
@@ -499,6 +673,11 @@ void loop() {
             uiService.renderNodeLab();
             serialPageRefreshRequested = false;
         }
+        else if (navigationService.isPeerScreen())
+        {
+            uiService.renderPeer();
+            serialPageRefreshRequested = false;
+        }
         else
         {
             uiService.renderDetail();
@@ -515,6 +694,48 @@ void loop() {
         Serial.println("Opened: RAMU Node Lab");
         uiService.renderNodeLab();
         serialPageRefreshRequested = false;
+    }
+
+    if (
+        navigationService.consumePeerOpened()
+    )
+    {
+        Serial.println("Opened: Remembered Peer");
+        uiService.renderPeer();
+        serialPageRefreshRequested = false;
+    }
+
+    if (
+        navigationService.consumePeerActionRequested()
+    )
+    {
+        const PeerAction action =
+            navigationService.peerAction();
+
+        if (action == PeerAction::Overview)
+        {
+            Serial.println();
+            Serial.println("Remembered RAMU peer");
+            Serial.print("  peer_id: ");
+            Serial.println(peerBindingHostService.peerId());
+            Serial.print("  binding_id: ");
+            Serial.println(peerBindingHostService.bindingId());
+            Serial.print("  peer_fingerprint: ");
+            Serial.println(peerBindingHostService.peerFingerprint());
+        }
+        else if (action == PeerAction::Capabilities)
+        {
+            Serial.println();
+            Serial.println("Advertised capabilities:");
+            Serial.println(peerBindingHostService.capabilities());
+        }
+        else if (action == PeerAction::Unbind)
+        {
+            Serial.println("Peer action: local unbind");
+            peerBindingHostService.unbindLocal();
+        }
+
+        uiService.renderPeer();
     }
 
     if (
@@ -546,6 +767,21 @@ void loop() {
         );
 
         uiService.renderNodeLab();
+    }
+
+    if (
+        navigationService.consumePairingRequested()
+    )
+    {
+        Serial.println(
+            "Settings: Pair Peer"
+        );
+
+        peerBindingHostService.startPairing(
+            nowMs
+        );
+
+        return;
     }
 
     if (
