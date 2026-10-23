@@ -463,7 +463,6 @@ void PeerBindingHostService::pairWithCode(
         );
 
         delete target;
-        delete client;
         return;
     }
 
@@ -483,7 +482,6 @@ void PeerBindingHostService::pairWithCode(
 
         client->disconnect();
         delete target;
-        delete client;
         return;
     }
 
@@ -535,7 +533,6 @@ void PeerBindingHostService::pairWithCode(
 
         client->disconnect();
         delete target;
-        delete client;
         return;
     }
 
@@ -582,7 +579,6 @@ void PeerBindingHostService::pairWithCode(
 
         client->disconnect();
         delete target;
-        delete client;
         return;
     }
 
@@ -605,7 +601,6 @@ void PeerBindingHostService::pairWithCode(
 
         client->disconnect();
         delete target;
-        delete client;
         return;
     }
 
@@ -655,7 +650,6 @@ void PeerBindingHostService::pairWithCode(
 
     client->disconnect();
     delete target;
-    delete client;
 }
 
 void PeerBindingHostService::updateSerial()
